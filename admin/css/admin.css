@@ -747,6 +747,35 @@ footer {
     margin-top: 6px;
 }
 
+.param-select {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-inset);
+    color: var(--text);
+    font-size: 0.82rem;
+    font-family: var(--font);
+}
+
+.color-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.color-input-row input[type="color"] {
+    width: 36px;
+    height: 30px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    cursor: pointer;
+    background: transparent;
+}
+.color-input-row input[type="text"] {
+    flex: 1;
+}
+
 .system-prompt-param textarea {
     width: 100%;
     border: 1px solid var(--border);
@@ -1587,6 +1616,15 @@ footer {
 
 .config-group-title svg {
     opacity: 0.5;
+}
+
+.config-mode-toggle {
+    display: flex;
+    gap: 4px;
+}
+.config-mode-toggle .btn-sm {
+    padding: 4px 12px;
+    font-size: 0.75rem;
 }
 
 /* Table-style rows matching info-table pattern */

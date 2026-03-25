@@ -121,6 +121,15 @@ button {
     font-size: 1.1rem;
     margin-bottom: 12px;
     color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sidebar-logo {
+    height: 32px;
+    width: auto;
+    border-radius: 4px;
 }
 
 #new-chat-btn {

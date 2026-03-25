@@ -159,6 +159,14 @@ const Models = (() => {
             if (topp) { topp.value = data.top_p; document.getElementById('param-topp-val').textContent = data.top_p; }
             if (ctx) { ctx.value = data.context_window; document.getElementById('param-ctx-val').textContent = data.context_window; }
             if (prompt) prompt.value = data.system_prompt || '';
+
+            // New params
+            const mt = document.getElementById('param-maxtokens');
+            const rp = document.getElementById('param-repeat');
+            const lang = document.getElementById('param-lang');
+            if (mt && data.max_tokens) { mt.value = data.max_tokens; document.getElementById('param-maxtokens-val').textContent = data.max_tokens; }
+            if (rp && data.repeat_penalty) { rp.value = data.repeat_penalty; document.getElementById('param-repeat-val').textContent = data.repeat_penalty; }
+            if (lang && data.response_language) lang.value = data.response_language;
         } catch (_) {}
     }
 
@@ -456,6 +464,9 @@ const Models = (() => {
             top_p: parseFloat(document.getElementById('param-topp').value),
             context_window: parseInt(document.getElementById('param-ctx').value),
             system_prompt: document.getElementById('param-prompt').value,
+            max_tokens: parseInt(document.getElementById('param-maxtokens')?.value || '2048'),
+            repeat_penalty: parseFloat(document.getElementById('param-repeat')?.value || '1.1'),
+            response_language: document.getElementById('param-lang')?.value || 'auto',
         };
 
         try {
@@ -549,21 +560,41 @@ const Models = (() => {
     // Init
     // =================================================================
 
+    let _saveTimer = null;
+
+    function _debounceSave() {
+        clearTimeout(_saveTimer);
+        _saveTimer = setTimeout(_saveParams, 400);
+    }
+
     function init() {
         initTabs();
 
-        // Slider live values
+        // Slider live values + auto-save
         document.getElementById('param-temp')?.addEventListener('input', (e) => {
             document.getElementById('param-temp-val').textContent = parseFloat(e.target.value).toFixed(2);
+            _debounceSave();
         });
         document.getElementById('param-topp')?.addEventListener('input', (e) => {
             document.getElementById('param-topp-val').textContent = parseFloat(e.target.value).toFixed(2);
+            _debounceSave();
         });
         document.getElementById('param-ctx')?.addEventListener('input', (e) => {
             document.getElementById('param-ctx-val').textContent = e.target.value;
+            _debounceSave();
+        });
+        document.getElementById('param-maxtokens')?.addEventListener('input', (e) => {
+            document.getElementById('param-maxtokens-val').textContent = e.target.value;
+            _debounceSave();
+        });
+        document.getElementById('param-repeat')?.addEventListener('input', (e) => {
+            document.getElementById('param-repeat-val').textContent = parseFloat(e.target.value).toFixed(2);
+            _debounceSave();
         });
 
-        document.getElementById('btn-save-params')?.addEventListener('click', _saveParams);
+        // Select + textarea auto-save
+        document.getElementById('param-lang')?.addEventListener('change', _debounceSave);
+        document.getElementById('param-prompt')?.addEventListener('input', _debounceSave);
 
         // Custom model input
         document.getElementById('btn-add-custom')?.addEventListener('click', addCustom);

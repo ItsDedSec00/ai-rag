@@ -91,3 +91,18 @@ async def health():
         status["services"]["chromadb"] = "unavailable"
 
     return status
+
+
+@app.get("/api/branding")
+async def branding():
+    """Public endpoint: app name, logo, color, chat settings."""
+    import config as cfg
+    return {
+        "app_name": cfg.branding_app_name(),
+        "logo_url": cfg.branding_logo_url(),
+        "primary_color": cfg.branding_primary_color(),
+        "welcome_message": cfg.chat_welcome(),
+        "placeholder": cfg.chat_placeholder(),
+        "history_limit": cfg.chat_history_limit(),
+        "markdown_enabled": cfg.chat_markdown_enabled(),
+    }

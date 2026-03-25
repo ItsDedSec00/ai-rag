@@ -2,8 +2,9 @@
 // https://duelle.org
 
 /**
- * Config Manager (ADM-06): view/edit config, JSON preview,
+ * Config Manager (ADM-06): view/edit config,
  * export/import, snapshot management.
+ * Auto-saves on every change (debounced).
  */
 
 const Config = (() => {
@@ -11,16 +12,34 @@ const Config = (() => {
     const API = '/api/admin/config';
     let _cfg = null;      // current config mirror
     let _loaded = false;
+    let _saveTimer = null;
+    let _mode = 'simple'; // 'simple' or 'advanced'
 
-    // Config field mapping: id prefix → section.key
-    // LLM settings are managed in the Models tab — only RAG + Server here
+    // Config field mapping: id → section.key
+    // LLM settings (ollama.*) are managed in the Models tab
     const FIELDS = [
-        { id: 'cfg-rag-embedding_model',       section: 'rag',    key: 'embedding_model',type: 'text' },
-        { id: 'cfg-rag-chunk_size',            section: 'rag',    key: 'chunk_size',     type: 'number' },
-        { id: 'cfg-rag-chunk_overlap',         section: 'rag',    key: 'chunk_overlap',  type: 'number' },
-        { id: 'cfg-rag-top_k',                 section: 'rag',    key: 'top_k',          type: 'number' },
-        { id: 'cfg-server-max_upload_mb',      section: 'server', key: 'max_upload_mb',  type: 'number' },
-        { id: 'cfg-server-session_timeout_min',section: 'server', key: 'session_timeout_min', type: 'number' },
+        // RAG
+        { id: 'cfg-rag-embedding_model',       section: 'rag',      key: 'embedding_model',    type: 'text' },
+        { id: 'cfg-rag-chunk_size',            section: 'rag',      key: 'chunk_size',          type: 'number' },
+        { id: 'cfg-rag-chunk_overlap',         section: 'rag',      key: 'chunk_overlap',       type: 'number' },
+        { id: 'cfg-rag-top_k',                 section: 'rag',      key: 'top_k',               type: 'number' },
+        { id: 'cfg-rag-min_score',             section: 'rag',      key: 'min_score',           type: 'number' },
+        { id: 'cfg-rag-display_sources',       section: 'rag',      key: 'display_sources',     type: 'number' },
+        { id: 'cfg-rag-reindex_on_change',     section: 'rag',      key: 'reindex_on_change',   type: 'bool' },
+        // Server
+        { id: 'cfg-server-max_upload_mb',      section: 'server',   key: 'max_upload_mb',       type: 'number' },
+        { id: 'cfg-server-session_timeout_min',section: 'server',   key: 'session_timeout_min', type: 'number' },
+        { id: 'cfg-server-log_level',          section: 'server',   key: 'log_level',           type: 'text' },
+        { id: 'cfg-server-indexer_interval_sec',section: 'server',  key: 'indexer_interval_sec',type: 'number' },
+        // Chat
+        { id: 'cfg-chat-welcome_message',      section: 'chat',     key: 'welcome_message',     type: 'text' },
+        { id: 'cfg-chat-placeholder',          section: 'chat',     key: 'placeholder',         type: 'text' },
+        { id: 'cfg-chat-history_limit',        section: 'chat',     key: 'history_limit',       type: 'number' },
+        { id: 'cfg-chat-markdown_enabled',     section: 'chat',     key: 'markdown_enabled',    type: 'bool' },
+        // Branding
+        { id: 'cfg-branding-app_name',         section: 'branding', key: 'app_name',            type: 'text' },
+        { id: 'cfg-branding-logo_url',         section: 'branding', key: 'logo_url',            type: 'text' },
+        { id: 'cfg-branding-primary_color',    section: 'branding', key: 'primary_color',       type: 'text' },
     ];
 
 
@@ -35,7 +54,6 @@ const Config = (() => {
             _cfg = await r.json();
             _loaded = true;
             _populateFields();
-            _renderJSON();
             _loadSnapshots();
         } catch (e) {
             console.error('Config load failed:', e);
@@ -47,10 +65,18 @@ const Config = (() => {
             const el = document.getElementById(f.id);
             if (!el) continue;
             const val = (_cfg[f.section] || {})[f.key];
-            if (val !== undefined) {
+            if (val === undefined) continue;
+
+            if (f.type === 'bool') {
+                el.value = val ? 'true' : 'false';
+            } else {
                 el.value = val;
             }
         }
+        // Sync color picker
+        const colorText = document.getElementById('cfg-branding-primary_color');
+        const colorPicker = document.getElementById('cfg-branding-primary_color_picker');
+        if (colorText && colorPicker) colorPicker.value = colorText.value || '#3b82f6';
     }
 
     function _readFields() {
@@ -61,24 +87,27 @@ const Config = (() => {
             const el = document.getElementById(f.id);
             if (!el) continue;
             if (!out[f.section]) out[f.section] = {};
-            let val = el.value;
-            if (f.type === 'number') val = Number(val);
-            out[f.section][f.key] = val;
+
+            if (f.type === 'number') {
+                out[f.section][f.key] = Number(el.value);
+            } else if (f.type === 'bool') {
+                out[f.section][f.key] = el.value === 'true';
+            } else {
+                out[f.section][f.key] = el.value;
+            }
         }
         return out;
     }
 
-    function _renderJSON() {
-        const pre = document.getElementById('config-json-preview');
-        if (pre && _cfg) {
-            pre.textContent = JSON.stringify(_cfg, null, 2);
-        }
+
+    // =================================================================
+    // Auto-save (debounced)
+    // =================================================================
+
+    function _debounceSave() {
+        clearTimeout(_saveTimer);
+        _saveTimer = setTimeout(save, 400);
     }
-
-
-    // =================================================================
-    // Save
-    // =================================================================
 
     async function save() {
         const updated = _readFields();
@@ -91,12 +120,29 @@ const Config = (() => {
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
             const data = await r.json();
             _cfg = data.config;
-            _populateFields();
-            _renderJSON();
-            _flash('config-saved-msg');
+            _flash('config-saved-msg', 'Gespeichert');
         } catch (e) {
-            alert('Speichern fehlgeschlagen: ' + e.message);
+            console.error('Config save failed:', e);
         }
+    }
+
+
+    // =================================================================
+    // Simple / Advanced mode
+    // =================================================================
+
+    function _setMode(mode) {
+        _mode = mode;
+        const btnSimple = document.getElementById('btn-mode-simple');
+        const btnAdvanced = document.getElementById('btn-mode-advanced');
+        if (btnSimple && btnAdvanced) {
+            btnSimple.classList.toggle('btn-accent', mode === 'simple');
+            btnAdvanced.classList.toggle('btn-accent', mode === 'advanced');
+        }
+
+        document.querySelectorAll('.config-group[data-mode="advanced"]').forEach(g => {
+            g.style.display = mode === 'advanced' ? '' : 'none';
+        });
     }
 
 
@@ -127,25 +173,11 @@ const Config = (() => {
             const data = await r.json();
             _cfg = data.config;
             _populateFields();
-            _renderJSON();
             _loadSnapshots();
             _flash('config-saved-msg', 'Importiert');
         } catch (e) {
             alert('Import fehlgeschlagen: ' + e.message);
         }
-    }
-
-
-    // =================================================================
-    // Copy JSON
-    // =================================================================
-
-    function copyJSON() {
-        const json = JSON.stringify(_cfg || {}, null, 2);
-        navigator.clipboard.writeText(json).then(() => {
-            const btn = document.getElementById('btn-config-copy');
-            if (btn) { btn.textContent = 'Kopiert!'; setTimeout(() => btn.textContent = 'Kopieren', 1500); }
-        });
     }
 
 
@@ -195,7 +227,7 @@ const Config = (() => {
 
     async function createSnapshot() {
         const label = prompt('Optionaler Name für den Snapshot:', '');
-        if (label === null) return; // cancelled
+        if (label === null) return;
         try {
             const r = await fetch(API + '/snapshot', {
                 method: 'POST',
@@ -218,7 +250,7 @@ const Config = (() => {
                 body: JSON.stringify({ id }),
             });
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            await load(); // reload everything
+            await load();
             _flash('config-saved-msg', 'Wiederhergestellt');
         } catch (e) {
             alert('Wiederherstellen fehlgeschlagen: ' + e.message);
@@ -261,13 +293,11 @@ const Config = (() => {
 
 
     // =================================================================
-    // Init (called once on DOMContentLoaded)
+    // Init
     // =================================================================
 
     function init() {
-        document.getElementById('btn-config-save')?.addEventListener('click', save);
         document.getElementById('btn-config-export')?.addEventListener('click', exportConfig);
-        document.getElementById('btn-config-copy')?.addEventListener('click', copyJSON);
         document.getElementById('btn-config-snapshot')?.addEventListener('click', createSnapshot);
 
         // Import trigger
@@ -279,6 +309,33 @@ const Config = (() => {
             if (f) importConfig(f);
             e.target.value = '';
         });
+
+        // Color picker ↔ text sync
+        const colorPicker = document.getElementById('cfg-branding-primary_color_picker');
+        const colorText = document.getElementById('cfg-branding-primary_color');
+        if (colorPicker && colorText) {
+            colorPicker.addEventListener('input', () => { colorText.value = colorPicker.value; _debounceSave(); });
+            colorText.addEventListener('input', () => {
+                if (/^#[0-9a-fA-F]{6}$/.test(colorText.value)) colorPicker.value = colorText.value;
+                _debounceSave();
+            });
+        }
+
+        // Mode toggle
+        document.getElementById('btn-mode-simple')?.addEventListener('click', () => _setMode('simple'));
+        document.getElementById('btn-mode-advanced')?.addEventListener('click', () => _setMode('advanced'));
+
+        // Auto-save on any config field change
+        for (const f of FIELDS) {
+            const el = document.getElementById(f.id);
+            if (!el) continue;
+            // Skip color fields (handled above with picker sync)
+            if (f.id === 'cfg-branding-primary_color') continue;
+            el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', _debounceSave);
+        }
+
+        // Start in simple mode
+        _setMode('simple');
     }
 
     document.addEventListener('DOMContentLoaded', init);

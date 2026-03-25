@@ -68,6 +68,11 @@ def _build_prompt(
     """Build the final prompt with system instruction + RAG context + query."""
     system_prompt = cfg.ollama_system_prompt()
 
+    # Append language instruction if set
+    lang = cfg.ollama_response_language()
+    if lang and lang != "auto":
+        system_prompt += f"\n\nAntworte immer auf {lang}."
+
     if not context_chunks:
         context_block = "(Kein relevanter Kontext verfügbar.)"
     else:
@@ -142,7 +147,14 @@ async def _retrieve_context(
     all_results.sort(key=lambda x: x["score"], reverse=True)
     top = all_results[:top_k]
 
+    # Filter by minimum similarity score
+    min_score = cfg.rag_min_score()
+    top = [r for r in top if r["score"] >= min_score]
+
     context_chunks = [{"text": r["text"], "source": r["source"]} for r in top]
+
+    # Limit displayed sources (may differ from retrieval top_k)
+    display_limit = cfg.rag_display_sources()
     sources = [
         {
             "file": r["source"],
@@ -150,7 +162,7 @@ async def _retrieve_context(
             "folder": r["folder"],
             "preview": r["text"][:150] + "..." if len(r["text"]) > 150 else r["text"],
         }
-        for r in top
+        for r in top[:display_limit]
     ]
 
     return context_chunks, sources
@@ -196,6 +208,8 @@ async def _stream_ollama(
                         "temperature": temperature,
                         "top_p": cfg.ollama_top_p(),
                         "num_ctx": cfg.ollama_context_window(),
+                        "num_predict": cfg.ollama_max_tokens(),
+                        "repeat_penalty": cfg.ollama_repeat_penalty(),
                     },
                 },
             ) as response:

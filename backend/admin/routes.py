@@ -153,15 +153,21 @@ class GenerationParamsRequest(BaseModel):
     top_p: float | None = None
     context_window: int | None = None
     system_prompt: str | None = None
+    max_tokens: int | None = None
+    repeat_penalty: float | None = None
+    response_language: str | None = None
 
 @router.post("/models/params")
 def models_update_params(req: GenerationParamsRequest):
-    """Update generation parameters (temperature, top_p, system_prompt)."""
+    """Update generation parameters."""
     return update_generation_params(
         temperature=req.temperature,
         top_p=req.top_p,
         context_window=req.context_window,
         system_prompt=req.system_prompt,
+        max_tokens=req.max_tokens,
+        repeat_penalty=req.repeat_penalty,
+        response_language=req.response_language,
     )
 
 

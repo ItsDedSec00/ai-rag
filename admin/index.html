@@ -264,6 +264,27 @@
                             <input type="range" id="param-ctx" min="512" max="32768" step="512" value="4096">
                             <div class="param-hint">Wie viel Text die KI auf einmal lesen kann</div>
                         </div>
+                        <div class="param">
+                            <label for="param-maxtokens">Max. Antwortlänge <span class="param-val" id="param-maxtokens-val">2048</span></label>
+                            <input type="range" id="param-maxtokens" min="128" max="8192" step="128" value="2048">
+                            <div class="param-hint">Maximale Anzahl Tokens in der Antwort</div>
+                        </div>
+                        <div class="param">
+                            <label for="param-repeat">Repeat-Penalty <span class="param-val" id="param-repeat-val">1.1</span></label>
+                            <input type="range" id="param-repeat" min="1.0" max="2.0" step="0.05" value="1.1">
+                            <div class="param-hint">Verhindert Wiederholungen · Höher = weniger Wiederholungen</div>
+                        </div>
+                    </div>
+                    <div class="param system-prompt-param">
+                        <label for="param-lang">Antwortsprache</label>
+                        <select id="param-lang" class="param-select">
+                            <option value="auto">Automatisch (Sprache der Frage)</option>
+                            <option value="Deutsch">Deutsch</option>
+                            <option value="Englisch">Englisch</option>
+                            <option value="Französisch">Französisch</option>
+                            <option value="Spanisch">Spanisch</option>
+                        </select>
+                        <div class="param-hint">Erzwingt eine bestimmte Antwortsprache</div>
                     </div>
                     <div class="param system-prompt-param">
                         <label for="param-prompt">System-Prompt</label>
@@ -271,8 +292,7 @@
                         <div class="param-hint">Dieser Text wird der KI als Grundanweisung mitgegeben</div>
                     </div>
                     <div class="params-actions">
-                        <button id="btn-save-params" class="btn-sm">Einstellungen speichern</button>
-                        <span id="params-saved-msg" class="saved-msg hidden">Gespeichert ✓</span>
+                        <span id="params-saved-msg" class="saved-msg hidden">Gespeichert</span>
                     </div>
                 </section>
 
@@ -481,14 +501,17 @@
                     <div class="panel-header">
                         <h2>Aktuelle Konfiguration</h2>
                         <div class="panel-actions">
-                            <button id="btn-config-save" class="btn-sm btn-accent">Speichern</button>
+                            <div class="config-mode-toggle">
+                                <button id="btn-mode-simple" class="btn-sm btn-accent">Einfach</button>
+                                <button id="btn-mode-advanced" class="btn-sm">Erweitert</button>
+                            </div>
                             <span id="config-saved-msg" class="saved-msg hidden">Gespeichert</span>
                         </div>
                     </div>
 
                     <div class="config-sections">
                         <!-- RAG -->
-                        <div class="config-group">
+                        <div class="config-group" data-mode="advanced">
                             <h3 class="config-group-title">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                                 RAG-Pipeline
@@ -509,10 +532,25 @@
                                 <label>Top-K Ergebnisse</label>
                                 <input type="number" id="cfg-rag-top_k" class="config-input config-input-sm" min="1" max="20" step="1">
                             </div>
+                            <div class="config-row">
+                                <label>Mindest-Score</label>
+                                <input type="number" id="cfg-rag-min_score" class="config-input config-input-sm" min="0" max="1" step="0.05">
+                            </div>
+                            <div class="config-row">
+                                <label>Angezeigte Quellen</label>
+                                <input type="number" id="cfg-rag-display_sources" class="config-input config-input-sm" min="1" max="20" step="1">
+                            </div>
+                            <div class="config-row">
+                                <label>Re-Index bei Änderung</label>
+                                <select id="cfg-rag-reindex_on_change" class="config-input config-input-sm">
+                                    <option value="true">Ja</option>
+                                    <option value="false">Nein</option>
+                                </select>
+                            </div>
                         </div>
 
                         <!-- Server -->
-                        <div class="config-group">
+                        <div class="config-group" data-mode="advanced">
                             <h3 class="config-group-title">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg>
                                 Server
@@ -525,19 +563,71 @@
                                 <label>Session-Timeout (Min.)</label>
                                 <input type="number" id="cfg-server-session_timeout_min" class="config-input config-input-sm" min="1" max="1440" step="1">
                             </div>
+                            <div class="config-row">
+                                <label>Log-Level</label>
+                                <select id="cfg-server-log_level" class="config-input config-input-sm">
+                                    <option value="DEBUG">DEBUG</option>
+                                    <option value="INFO">INFO</option>
+                                    <option value="WARNING">WARNING</option>
+                                    <option value="ERROR">ERROR</option>
+                                </select>
+                            </div>
+                            <div class="config-row">
+                                <label>Indexer-Intervall (Sek.)</label>
+                                <input type="number" id="cfg-server-indexer_interval_sec" class="config-input config-input-sm" min="1" max="60" step="1">
+                            </div>
                         </div>
-                    </div>
-                </section>
 
-                <!-- JSON preview -->
-                <section class="panel">
-                    <div class="panel-header">
-                        <h2>JSON-Vorschau</h2>
-                        <div class="panel-actions">
-                            <button id="btn-config-copy" class="btn-sm" title="JSON in Zwischenablage kopieren">Kopieren</button>
+                        <!-- Chat -->
+                        <div class="config-group">
+                            <h3 class="config-group-title">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                Chat-Frontend
+                            </h3>
+                            <div class="config-row">
+                                <label>Willkommensnachricht</label>
+                                <input type="text" id="cfg-chat-welcome_message" class="config-input">
+                            </div>
+                            <div class="config-row">
+                                <label>Platzhalter-Text</label>
+                                <input type="text" id="cfg-chat-placeholder" class="config-input">
+                            </div>
+                            <div class="config-row">
+                                <label>Max. Chat-Verlauf</label>
+                                <input type="number" id="cfg-chat-history_limit" class="config-input config-input-sm" min="5" max="500" step="5">
+                            </div>
+                            <div class="config-row">
+                                <label>Markdown-Rendering</label>
+                                <select id="cfg-chat-markdown_enabled" class="config-input config-input-sm">
+                                    <option value="true">Aktiviert</option>
+                                    <option value="false">Deaktiviert</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Branding -->
+                        <div class="config-group">
+                            <h3 class="config-group-title">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg>
+                                Branding
+                            </h3>
+                            <div class="config-row">
+                                <label>App-Name</label>
+                                <input type="text" id="cfg-branding-app_name" class="config-input">
+                            </div>
+                            <div class="config-row">
+                                <label>Logo-URL</label>
+                                <input type="text" id="cfg-branding-logo_url" class="config-input" placeholder="https://…/logo.png (leer = kein Logo)">
+                            </div>
+                            <div class="config-row">
+                                <label>Primärfarbe</label>
+                                <div class="color-input-row">
+                                    <input type="color" id="cfg-branding-primary_color_picker" value="#3b82f6">
+                                    <input type="text" id="cfg-branding-primary_color" class="config-input config-input-sm" placeholder="#3b82f6">
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <pre id="config-json-preview" class="config-json"></pre>
                 </section>
 
                 <!-- Import / Export -->

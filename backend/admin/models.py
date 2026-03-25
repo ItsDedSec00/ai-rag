@@ -393,6 +393,9 @@ def get_active_model() -> dict:
         "top_p": cfg.ollama_top_p(),
         "context_window": cfg.ollama_context_window(),
         "system_prompt": cfg.ollama_system_prompt(),
+        "max_tokens": cfg.ollama_max_tokens(),
+        "repeat_penalty": cfg.ollama_repeat_penalty(),
+        "response_language": cfg.ollama_response_language(),
     }
 
 
@@ -407,6 +410,9 @@ def update_generation_params(
     top_p: float | None = None,
     context_window: int | None = None,
     system_prompt: str | None = None,
+    max_tokens: int | None = None,
+    repeat_penalty: float | None = None,
+    response_language: str | None = None,
 ) -> dict:
     """Update generation parameters in config."""
     updates = {}
@@ -418,6 +424,12 @@ def update_generation_params(
         updates["context_window"] = min(max(context_window, 512), 131072)
     if system_prompt is not None:
         updates["system_prompt"] = system_prompt
+    if max_tokens is not None:
+        updates["max_tokens"] = min(max(max_tokens, 64), 32768)
+    if repeat_penalty is not None:
+        updates["repeat_penalty"] = round(min(max(repeat_penalty, 1.0), 2.0), 2)
+    if response_language is not None:
+        updates["response_language"] = response_language
 
     if updates:
         cfg.update_section("ollama", updates)

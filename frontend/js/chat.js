@@ -15,7 +15,12 @@
 const Chat = (() => {
 
     const STORAGE_KEY = 'rag-chat-history';
-    const MAX_CHATS = 50;
+
+    let _maxChats = 50;
+    let _markdownEnabled = true;
+    let _welcomeMessage = 'Willkommen bei RAG-Chat';
+    let _welcomeSub = 'Stelle eine Frage zu deinen Dokumenten oder lade eine Datei hoch.';
+    let _placeholder = 'Nachricht eingeben… (Shift+Enter für Zeilenumbruch)';
 
     let _abortController = null;
     let _isStreaming = false;
@@ -35,9 +40,9 @@ const Chat = (() => {
     }
 
     function _saveHistory() {
-        // Trim to MAX_CHATS
-        if (_conversations.length > MAX_CHATS) {
-            _conversations = _conversations.slice(0, MAX_CHATS);
+        // Trim to max chats
+        if (_conversations.length > _maxChats) {
+            _conversations = _conversations.slice(0, _maxChats);
         }
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(_conversations));
@@ -168,7 +173,7 @@ const Chat = (() => {
     }
 
     function renderMarkdown(text) {
-        if (typeof marked !== 'undefined') {
+        if (_markdownEnabled && typeof marked !== 'undefined') {
             return marked.parse(text);
         }
         return text
@@ -186,8 +191,8 @@ const Chat = (() => {
         const messages = document.getElementById('messages');
         messages.innerHTML = `
             <div id="welcome" class="welcome-msg">
-                <h2>Willkommen bei RAG-Chat</h2>
-                <p>Stelle eine Frage zu deinen Dokumenten oder lade eine Datei hoch.</p>
+                <h2>${_escHtml(_welcomeMessage)}</h2>
+                <p>${_escHtml(_welcomeSub)}</p>
             </div>`;
     }
 
@@ -497,6 +502,66 @@ const Chat = (() => {
     }
 
     // ===================================================================
+    // Branding & chat config
+    // ===================================================================
+
+    async function _loadBranding() {
+        try {
+            const r = await fetch('/api/branding');
+            if (!r.ok) return;
+            const b = await r.json();
+
+            // Apply app name + logo
+            if (b.app_name) {
+                document.title = b.app_name;
+                const headerH1 = document.querySelector('#chat-header h1');
+                if (headerH1) headerH1.textContent = b.app_name;
+            }
+
+            const sidebarH2 = document.querySelector('.sidebar-header h2');
+            if (sidebarH2) {
+                if (b.logo_url) {
+                    // Logo set: show only the logo in sidebar
+                    const img = document.createElement('img');
+                    img.src = b.logo_url;
+                    img.alt = b.app_name || 'Logo';
+                    img.className = 'sidebar-logo';
+                    sidebarH2.textContent = '';
+                    sidebarH2.appendChild(img);
+                } else if (b.app_name) {
+                    sidebarH2.textContent = b.app_name;
+                }
+            }
+
+            // Apply primary color
+            if (b.primary_color) {
+                document.documentElement.style.setProperty('--accent', b.primary_color);
+            }
+
+            // Chat settings
+            if (b.welcome_message) {
+                // Split on "!" or "." to get heading + subtitle
+                const parts = b.welcome_message.split(/(?<=[!.])\s+/);
+                _welcomeMessage = parts[0] || b.welcome_message;
+                if (parts.length > 1) _welcomeSub = parts.slice(1).join(' ');
+            }
+            if (b.placeholder) _placeholder = b.placeholder;
+            if (typeof b.history_limit === 'number') _maxChats = b.history_limit;
+            if (typeof b.markdown_enabled === 'boolean') _markdownEnabled = b.markdown_enabled;
+
+            // Apply placeholder
+            const input = document.getElementById('message-input');
+            if (input && b.placeholder) input.placeholder = _placeholder;
+
+            // Re-render welcome if visible
+            if (document.getElementById('welcome')) _showWelcome();
+        } catch (_) {
+            // Branding is optional — continue with defaults
+        }
+    }
+
+
+    // ===================================================================
     // Init
     // ===================================================================
 
@@ -504,6 +569,7 @@ const Chat = (() => {
         initMarked();
         _loadHistory();
         _renderChatList();
+        _loadBranding();
 
         const form = document.getElementById('chat-form');
         const input = document.getElementById('message-input');

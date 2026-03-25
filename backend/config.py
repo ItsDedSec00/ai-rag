@@ -37,6 +37,9 @@ _DEFAULTS: dict[str, Any] = {
         "temperature": 0.7,
         "top_p": 0.9,
         "context_window": 4096,
+        "max_tokens": 2048,
+        "repeat_penalty": 1.1,
+        "response_language": "auto",
         "system_prompt": (
             "Du bist ein hilfreicher Assistent. Beantworte die Frage des Nutzers "
             "basierend auf dem folgenden Kontext. Wenn der Kontext keine Antwort "
@@ -49,10 +52,27 @@ _DEFAULTS: dict[str, Any] = {
         "chunk_size": 1000,
         "chunk_overlap": 200,
         "top_k": 5,
+        "min_score": 0.3,
+        "display_sources": 5,
+        "supported_formats": ["pdf", "docx", "txt", "md", "csv"],
+        "reindex_on_change": True,
     },
     "server": {
         "max_upload_mb": 10,
         "session_timeout_min": 30,
+        "log_level": "INFO",
+        "indexer_interval_sec": 5,
+    },
+    "chat": {
+        "welcome_message": "Willkommen bei {app_name}! Stelle eine Frage zu deinen Dokumenten.",
+        "placeholder": "Nachricht eingeben…",
+        "history_limit": 50,
+        "markdown_enabled": True,
+    },
+    "branding": {
+        "app_name": "RAG-Chat",
+        "logo_url": "",
+        "primary_color": "#3b82f6",
     },
     "custom_models": [],
 }
@@ -187,6 +207,34 @@ def rag_chunk_overlap() -> int:
     if not _loaded: load()
     return int(_cfg.get("rag", {}).get("chunk_overlap", 200))
 
+def ollama_max_tokens() -> int:
+    if not _loaded: load()
+    return int(_cfg.get("ollama", {}).get("max_tokens", 2048))
+
+def ollama_repeat_penalty() -> float:
+    if not _loaded: load()
+    return float(_cfg.get("ollama", {}).get("repeat_penalty", 1.1))
+
+def ollama_response_language() -> str:
+    if not _loaded: load()
+    return _cfg.get("ollama", {}).get("response_language", "auto")
+
+def rag_min_score() -> float:
+    if not _loaded: load()
+    return float(_cfg.get("rag", {}).get("min_score", 0.3))
+
+def rag_display_sources() -> int:
+    if not _loaded: load()
+    return int(_cfg.get("rag", {}).get("display_sources", 5))
+
+def rag_supported_formats() -> list[str]:
+    if not _loaded: load()
+    return _cfg.get("rag", {}).get("supported_formats", ["pdf", "docx", "txt", "md", "csv"])
+
+def rag_reindex_on_change() -> bool:
+    if not _loaded: load()
+    return bool(_cfg.get("rag", {}).get("reindex_on_change", True))
+
 def server_max_upload_mb() -> int:
     if not _loaded: load()
     return int(_cfg.get("server", {}).get("max_upload_mb", 10))
@@ -194,6 +242,44 @@ def server_max_upload_mb() -> int:
 def server_session_timeout_min() -> int:
     if not _loaded: load()
     return int(_cfg.get("server", {}).get("session_timeout_min", 30))
+
+def server_log_level() -> str:
+    if not _loaded: load()
+    return _cfg.get("server", {}).get("log_level", "INFO")
+
+def server_indexer_interval() -> int:
+    if not _loaded: load()
+    return int(_cfg.get("server", {}).get("indexer_interval_sec", 5))
+
+def chat_welcome() -> str:
+    if not _loaded: load()
+    msg = _cfg.get("chat", {}).get("welcome_message", "")
+    name = _cfg.get("branding", {}).get("app_name", "RAG-Chat")
+    return msg.replace("{app_name}", name)
+
+def chat_placeholder() -> str:
+    if not _loaded: load()
+    return _cfg.get("chat", {}).get("placeholder", "Nachricht eingeben…")
+
+def chat_history_limit() -> int:
+    if not _loaded: load()
+    return int(_cfg.get("chat", {}).get("history_limit", 50))
+
+def chat_markdown_enabled() -> bool:
+    if not _loaded: load()
+    return bool(_cfg.get("chat", {}).get("markdown_enabled", True))
+
+def branding_app_name() -> str:
+    if not _loaded: load()
+    return _cfg.get("branding", {}).get("app_name", "RAG-Chat")
+
+def branding_logo_url() -> str:
+    if not _loaded: load()
+    return _cfg.get("branding", {}).get("logo_url", "")
+
+def branding_primary_color() -> str:
+    if not _loaded: load()
+    return _cfg.get("branding", {}).get("primary_color", "#3b82f6")
 
 
 # ──────────────────────────────────────────────────────────────────────
