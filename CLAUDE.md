@@ -237,3 +237,29 @@ Hier die Kurzreferenz der Aufgaben-IDs:
 4. **Warum systemd statt Docker-eigener Restart?** systemd bietet: Boot-Start, Journal-Logging, Timer für Update-Checks, Status-Abfrage für Admin-Panel.
 
 5. **Indexer als eigener Service vs. im Backend?** Läuft im Backend-Container als Background-Task (asyncio). Kein separater Container nötig — vereinfacht die Architektur.
+
+## Branding & Copyright
+
+**Autor:** David Dülle  
+**Website:** https://duelle.org  
+**Lizenz:** Siehe LICENSE-Datei
+
+### Pflicht-Branding auf allen Oberflächen:
+- **Chat-Frontend (footer):** `© 2026 David Dülle` mit Link zu https://duelle.org
+- **Admin-Panel (footer):** `© 2026 David Dülle · RAG-Chat` mit Link zu https://duelle.org
+- **Installer-Output:** Name + URL bei Installationsabschluss anzeigen
+
+### Pflicht-Header in allen Quelldateien:
+Jede Python-, JS-, CSS- und HTML-Datei beginnt mit:
+```
+# RAG-Chat — © 2026 David Dülle
+# https://duelle.org
+```
+Für HTML/CSS:
+```html
+<!-- RAG-Chat — © 2026 David Dülle · https://duelle.org -->
+```
+
+### README + package-Dateien:
+- README.md: Autorenabschnitt mit Name + Link
+- Alle Config-/Meta-Dateien (requirements.txt Header, .env): Autor-Kommentar

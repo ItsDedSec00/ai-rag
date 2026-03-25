@@ -1,0 +1,220 @@
+<!-- RAG-Chat — © 2026 David Dülle · https://duelle.org -->
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin — RAG-Chat</title>
+    <link rel="stylesheet" href="/admin/css/admin.css">
+</head>
+<body>
+    <div id="admin-app">
+        <!-- Sidebar navigation -->
+        <aside id="admin-sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-icon">R</div>
+                <span class="brand-text">RAG-Chat</span>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-tab="dashboard">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    Dashboard
+                </a>
+                <a href="#" class="nav-item disabled" data-tab="models">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    Modelle
+                </a>
+                <a href="#" class="nav-item disabled" data-tab="files">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    Dateien
+                </a>
+                <a href="#" class="nav-item disabled" data-tab="config">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    Einstellungen
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/" class="nav-item">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    Zum Chat
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main content -->
+        <div id="admin-main">
+            <header id="admin-header">
+                <button id="sidebar-toggle" class="icon-btn" title="Menü">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+                <div class="header-title">
+                    <h1>Dashboard</h1>
+                    <span id="last-update" class="header-sub">Aktualisiert: —</span>
+                </div>
+                <div class="header-actions">
+                    <span id="connection-status" class="badge offline">Offline</span>
+                    <button id="theme-toggle" class="icon-btn" title="Design wechseln">
+                        <svg id="icon-theme-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                        <svg id="icon-theme-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="hidden"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                    </button>
+                </div>
+            </header>
+
+            <div id="dashboard" class="page-content">
+                <!-- KPI strip -->
+                <section class="kpi-strip">
+                    <div class="kpi">
+                        <div class="kpi-value" id="val-uptime">—</div>
+                        <div class="kpi-label">Docker-Uptime</div>
+                    </div>
+                    <div class="kpi-divider"></div>
+                    <div class="kpi">
+                        <div class="kpi-value" id="val-requests-total">0</div>
+                        <div class="kpi-label">Anfragen gesamt</div>
+                    </div>
+                    <div class="kpi-divider"></div>
+                    <div class="kpi">
+                        <div class="kpi-value" id="val-requests-today">0</div>
+                        <div class="kpi-label">Heute</div>
+                    </div>
+                    <div class="kpi-divider"></div>
+                    <div class="kpi">
+                        <div class="kpi-value" id="val-requests-hour">0</div>
+                        <div class="kpi-label">Letzte Stunde</div>
+                    </div>
+                </section>
+
+                <!-- Resource meters -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>Ressourcen</h2>
+                    </div>
+                    <div class="meters-grid">
+                        <div class="meter">
+                            <div class="meter-header">
+                                <span class="meter-label">CPU</span>
+                                <span class="meter-value" id="meter-cpu-pct">—</span>
+                            </div>
+                            <div class="meter-bar"><div class="meter-fill" id="meter-cpu-fill"></div></div>
+                            <div class="meter-sub" id="meter-cpu-sub"></div>
+                        </div>
+                        <div class="meter">
+                            <div class="meter-header">
+                                <span class="meter-label">RAM</span>
+                                <span class="meter-value" id="meter-ram-pct">—</span>
+                            </div>
+                            <div class="meter-bar"><div class="meter-fill" id="meter-ram-fill"></div></div>
+                            <div class="meter-sub" id="meter-ram-sub"></div>
+                        </div>
+                        <div class="meter">
+                            <div class="meter-header">
+                                <span class="meter-label">Festplatte</span>
+                                <span class="meter-value" id="meter-disk-pct">—</span>
+                            </div>
+                            <div class="meter-bar"><div class="meter-fill" id="meter-disk-fill"></div></div>
+                            <div class="meter-sub" id="meter-disk-sub"></div>
+                        </div>
+                        <div class="meter" id="meter-gpu-container">
+                            <div class="meter-header">
+                                <span class="meter-label">GPU</span>
+                                <span class="meter-value" id="meter-gpu-pct">—</span>
+                            </div>
+                            <div class="meter-bar"><div class="meter-fill" id="meter-gpu-fill"></div></div>
+                            <div class="meter-sub" id="meter-gpu-sub"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Two-column info -->
+                <div class="two-col">
+                    <!-- Services & System -->
+                    <section class="panel">
+                        <div class="panel-header">
+                            <h2>System</h2>
+                        </div>
+                        <table class="info-table">
+                            <tbody>
+                                <tr>
+                                    <td class="label">Ollama</td>
+                                    <td><span id="svc-ollama" class="svc-status">●</span> <span id="svc-ollama-text">—</span></td>
+                                </tr>
+                                <tr>
+                                    <td class="label">ChromaDB</td>
+                                    <td><span id="svc-chromadb" class="svc-status">●</span> <span id="svc-chromadb-text">—</span></td>
+                                </tr>
+                                <tr class="separator"><td colspan="2"></td></tr>
+                                <tr>
+                                    <td class="label">Chat-Modell</td>
+                                    <td id="sys-chat-model">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="label">Embedding-Modell</td>
+                                    <td id="sys-embedding-model">—</td>
+                                </tr>
+                                <tr class="separator"><td colspan="2"></td></tr>
+                                <tr>
+                                    <td class="label">Hostname</td>
+                                    <td id="sys-hostname">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="label">Plattform</td>
+                                    <td id="sys-platform">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="label">CPU</td>
+                                    <td id="sys-cpu">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="label">GPU / Modus</td>
+                                    <td id="sys-gpu">—</td>
+                                </tr>
+                                <tr>
+                                    <td class="label">System-Uptime</td>
+                                    <td id="sys-uptime">—</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </section>
+
+                    <!-- Collections -->
+                    <section class="panel">
+                        <div class="panel-header">
+                            <h2>Wissensbasis</h2>
+                            <span class="panel-badge" id="total-chunks">—</span>
+                        </div>
+                        <div id="collections-list" class="collections-list">
+                            <p class="muted">Lädt…</p>
+                        </div>
+
+                        <div class="panel-sub-header">
+                            <h3>Indexer</h3>
+                            <span class="indexer-status" id="indexer-badge">—</span>
+                        </div>
+                        <div class="indexer-info">
+                            <span id="indexer-detail"></span>
+                            <button id="btn-reindex" class="btn-sm" title="Alle Dateien neu indexieren">Reindex</button>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Indexer log -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>Indexer-Log</h2>
+                        <span class="muted" id="log-count"></span>
+                    </div>
+                    <div id="indexer-log" class="log-container">
+                        <div class="muted">Keine Einträge</div>
+                    </div>
+                </section>
+            </div>
+
+            <footer>
+                &copy; 2026 <a href="https://duelle.org" target="_blank" rel="noopener">David Dülle</a> · RAG-Chat
+            </footer>
+        </div>
+    </div>
+
+    <script src="/admin/js/dashboard.js"></script>
+</body>
+</html>
