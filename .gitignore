@@ -1,0 +1,30 @@
+# Data volumes (persistent, not in git)
+/data/
+
+# Environment
+.env
+nginx/htpasswd
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
