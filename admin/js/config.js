@@ -13,12 +13,8 @@ const Config = (() => {
     let _loaded = false;
 
     // Config field mapping: id prefix → section.key
+    // LLM settings are managed in the Models tab — only RAG + Server here
     const FIELDS = [
-        { id: 'cfg-ollama-model',              section: 'ollama', key: 'model',          type: 'text',   readonly: true },
-        { id: 'cfg-ollama-temperature',        section: 'ollama', key: 'temperature',    type: 'number' },
-        { id: 'cfg-ollama-top_p',              section: 'ollama', key: 'top_p',          type: 'number' },
-        { id: 'cfg-ollama-context_window',     section: 'ollama', key: 'context_window', type: 'number' },
-        { id: 'cfg-ollama-system_prompt',      section: 'ollama', key: 'system_prompt',  type: 'textarea' },
         { id: 'cfg-rag-embedding_model',       section: 'rag',    key: 'embedding_model',type: 'text' },
         { id: 'cfg-rag-chunk_size',            section: 'rag',    key: 'chunk_size',     type: 'number' },
         { id: 'cfg-rag-chunk_overlap',         section: 'rag',    key: 'chunk_overlap',  type: 'number' },
@@ -58,7 +54,8 @@ const Config = (() => {
     }
 
     function _readFields() {
-        const out = {};
+        // Start from current config, then overlay form values
+        const out = JSON.parse(JSON.stringify(_cfg || {}));
         for (const f of FIELDS) {
             if (f.readonly) continue;
             const el = document.getElementById(f.id);
@@ -67,12 +64,6 @@ const Config = (() => {
             let val = el.value;
             if (f.type === 'number') val = Number(val);
             out[f.section][f.key] = val;
-        }
-        // Keep fields we don't edit (model, custom_models)
-        if (_cfg) {
-            out.ollama = out.ollama || {};
-            out.ollama.model = _cfg.ollama?.model || '';
-            if (_cfg.custom_models) out.custom_models = _cfg.custom_models;
         }
         return out;
     }

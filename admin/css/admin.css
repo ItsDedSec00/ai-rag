@@ -1546,11 +1546,11 @@ footer {
     .file-actions { opacity: 1; }
     .file-row { padding: 10px 14px; }
 
-    .config-row { flex-direction: column; }
+    .config-row { flex-direction: column; align-items: stretch; gap: 4px; }
     .config-row label { min-width: unset; }
-    .config-input-sm { width: 100%; }
+    .config-input, .config-input-sm { max-width: 100%; }
     .config-io-row { flex-direction: column; }
-    .snapshot-row { flex-direction: column; gap: 8px; }
+    .snapshot-row { flex-direction: column; gap: 8px; align-items: stretch; }
 }
 
 
@@ -1561,48 +1561,53 @@ footer {
 .config-sections {
     display: flex;
     flex-direction: column;
-    gap: 20px;
 }
 
 .config-group {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 16px;
+    padding: 0;
 }
 
 .config-group-title {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 14px;
+    font-size: 0.8rem;
     font-weight: 600;
-    color: var(--text);
-    margin: 0 0 14px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    padding: 12px 20px 8px;
+    margin: 0;
+    border-bottom: 1px solid var(--border);
 }
 
+.config-group + .config-group {
+    border-top: none;
+}
+
+.config-group-title svg {
+    opacity: 0.5;
+}
+
+/* Table-style rows matching info-table pattern */
 .config-row {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 6px 0;
+    padding: 9px 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.config-row:last-child {
+    border-bottom: none;
 }
 
 .config-row label {
     min-width: 180px;
-    font-size: 13px;
+    font-size: 0.82rem;
     font-weight: 500;
     color: var(--text-muted);
     flex-shrink: 0;
-}
-
-.config-row-wide {
-    flex-direction: column;
-    align-items: stretch;
-}
-
-.config-row-wide label {
-    min-width: unset;
-    margin-bottom: 4px;
 }
 
 .config-input {
@@ -1611,10 +1616,10 @@ footer {
     border-radius: var(--radius);
     background: var(--bg);
     color: var(--text);
-    font-size: 13px;
-    font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
+    font-size: 0.82rem;
+    font-family: inherit;
     width: 100%;
-    max-width: 400px;
+    max-width: 320px;
 }
 
 .config-input:focus {
@@ -1623,73 +1628,46 @@ footer {
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
 }
 
-.config-input[readonly] {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
 .config-input-sm {
-    max-width: 140px;
-}
-
-.config-textarea {
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg);
-    color: var(--text);
-    font-size: 13px;
-    width: 100%;
-    resize: vertical;
-    font-family: inherit;
-}
-
-.config-textarea:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
-}
-
-.config-hint {
-    font-size: 11px;
-    color: var(--text-muted);
-    opacity: 0.7;
+    max-width: 120px;
 }
 
 /* JSON preview */
 .config-json {
     background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px;
-    font-size: 12px;
-    font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
+    padding: 16px 20px;
+    font-size: 0.78rem;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
     color: var(--text);
     overflow-x: auto;
-    max-height: 400px;
+    max-height: 360px;
     overflow-y: auto;
     white-space: pre;
     margin: 0;
-    line-height: 1.5;
+    line-height: 1.6;
 }
 
 /* Import/Export row */
 .config-io-row {
     display: flex;
-    gap: 24px;
+    gap: 1px;
+    background: var(--border);
 }
 
 .config-io-block {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
+    padding: 16px 20px;
+    background: var(--bg-surface);
 }
 
 .config-io-block p {
-    font-size: 13px;
+    font-size: 0.82rem;
     color: var(--text-muted);
     margin: 0;
+    line-height: 1.5;
 }
 
 /* Snapshots */
@@ -1702,7 +1680,7 @@ footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 0;
+    padding: 10px 20px;
     border-bottom: 1px solid var(--border);
 }
 
@@ -1714,26 +1692,27 @@ footer {
     display: flex;
     align-items: center;
     gap: 12px;
-    font-size: 13px;
+    font-size: 0.82rem;
 }
 
 .snapshot-date {
     font-weight: 500;
     color: var(--text);
-    font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.78rem;
 }
 
 .snapshot-label {
-    background: var(--bg-muted, var(--bg));
+    background: var(--bg);
     padding: 2px 8px;
     border-radius: 4px;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--text-muted);
     border: 1px solid var(--border);
 }
 
 .snapshot-size {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--text-muted);
     opacity: 0.7;
 }
