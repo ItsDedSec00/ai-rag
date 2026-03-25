@@ -39,15 +39,16 @@ LOGS_PATH = "/data/logs"
 STATE_FILE = os.path.join(CONFIG_PATH, "indexer_state.json")
 LOG_FILE = os.path.join(LOGS_PATH, "indexer.log")
 
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "200"))
+import config as cfg
 
 
 # ---------------------------------------------------------------------------
 # Text Chunker
 # ---------------------------------------------------------------------------
 
-def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
+def chunk_text(text: str, chunk_size: int | None = None, overlap: int | None = None) -> list[str]:
+    chunk_size = chunk_size or cfg.rag_chunk_size()
+    overlap = overlap or cfg.rag_chunk_overlap()
     """
     Split text into overlapping chunks.
     Breaks at paragraph → newline → space boundaries when possible.

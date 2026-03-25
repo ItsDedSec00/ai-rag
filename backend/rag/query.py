@@ -27,6 +27,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+import config as cfg
 from rag.embeddings import embed_text
 from rag.chroma_client import similarity_search, list_collection_names
 from rag.upload import session_search
@@ -36,25 +37,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["chat"])
 
 # ---------------------------------------------------------------------------
-# Config
+# Infrastructure (not user-changeable)
 # ---------------------------------------------------------------------------
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "ollama")
 OLLAMA_PORT = os.getenv("OLLAMA_PORT", "11434")
 OLLAMA_BASE = f"http://{OLLAMA_HOST}:{OLLAMA_PORT}"
-
-CHAT_MODEL = os.getenv("CHAT_MODEL", "llama3.2:1b")
-TOP_K = int(os.getenv("RAG_TOP_K", "5"))
-CONTEXT_WINDOW = int(os.getenv("CONTEXT_WINDOW", "4096"))
-TEMPERATURE = float(os.getenv("TEMPERATURE", "0.7"))
-TOP_P = float(os.getenv("TOP_P", "0.9"))
-
-SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", (
-    "Du bist ein hilfreicher Assistent. Beantworte die Frage des Nutzers "
-    "basierend auf dem folgenden Kontext. Wenn der Kontext keine Antwort "
-    "enthält, sage ehrlich, dass du es nicht weißt. "
-    "Antworte auf Deutsch, es sei denn der Nutzer fragt in einer anderen Sprache."
-))
 
 
 # ---------------------------------------------------------------------------
@@ -65,8 +53,8 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=10000)
     collection: str | None = Field(None, description="Specific collection to search, or None for all")
     session_id: str | None = Field(None, description="Upload session ID for temporary context")
-    top_k: int = Field(default=TOP_K, ge=1, le=20)
-    temperature: float = Field(default=TEMPERATURE, ge=0.0, le=2.0)
+    top_k: int | None = Field(None, ge=1, le=20)
+    temperature: float | None = Field(None, ge=0.0, le=2.0)
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +66,8 @@ def _build_prompt(
     context_chunks: list[dict[str, Any]],
 ) -> str:
     """Build the final prompt with system instruction + RAG context + query."""
+    system_prompt = cfg.ollama_system_prompt()
+
     if not context_chunks:
         context_block = "(Kein relevanter Kontext verfügbar.)"
     else:
@@ -89,7 +79,7 @@ def _build_prompt(
         context_block = "\n\n---\n\n".join(parts)
 
     return (
-        f"{SYSTEM_PROMPT}\n\n"
+        f"{system_prompt}\n\n"
         f"=== KONTEXT ===\n{context_block}\n\n"
         f"=== FRAGE ===\n{query}"
     )
@@ -204,8 +194,8 @@ async def _stream_ollama(
                     "stream": True,
                     "options": {
                         "temperature": temperature,
-                        "top_p": TOP_P,
-                        "num_ctx": CONTEXT_WINDOW,
+                        "top_p": cfg.ollama_top_p(),
+                        "num_ctx": cfg.ollama_context_window(),
                     },
                 },
             ) as response:
@@ -328,10 +318,15 @@ async def chat(req: ChatRequest, request: Request):
     """
     logger.info("Chat request: %.100s...", req.message)
 
+    # Resolve per-request values from config (with optional request overrides)
+    top_k = req.top_k if req.top_k is not None else cfg.rag_top_k()
+    temperature = req.temperature if req.temperature is not None else cfg.ollama_temperature()
+    model = cfg.ollama_model()
+
     # 1. Retrieve context from ChromaDB
     try:
         context_chunks, sources = await _retrieve_context(
-            req.message, req.collection, req.top_k, req.session_id
+            req.message, req.collection, top_k, req.session_id
         )
     except Exception as e:
         logger.error("Context retrieval failed: %s", e)
@@ -343,7 +338,7 @@ async def chat(req: ChatRequest, request: Request):
 
     # 3. Stream response
     return StreamingResponse(
-        _stream_ollama(prompt, CHAT_MODEL, req.temperature, sources, request),
+        _stream_ollama(prompt, model, temperature, sources, request),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

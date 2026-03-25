@@ -11,15 +11,17 @@ from typing import Any
 
 import httpx
 
+import config as cfg
+
 logger = logging.getLogger(__name__)
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "ollama")
 OLLAMA_PORT = os.getenv("OLLAMA_PORT", "11434")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
 OLLAMA_BASE = f"http://{OLLAMA_HOST}:{OLLAMA_PORT}"
 
 
-async def embed_text(text: str, model: str = EMBEDDING_MODEL) -> list[float]:
+async def embed_text(text: str, model: str | None = None) -> list[float]:
+    model = model or cfg.rag_embedding_model()
     """Embed a single text string. Returns a float vector."""
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
@@ -35,13 +37,14 @@ async def embed_text(text: str, model: str = EMBEDDING_MODEL) -> list[float]:
 
 async def embed_batch(
     texts: list[str],
-    model: str = EMBEDDING_MODEL,
+    model: str | None = None,
     log_progress: bool = False,
 ) -> list[list[float]]:
     """
     Embed a list of texts sequentially.
     Ollama does not support true batch embedding.
     """
+    model = model or cfg.rag_embedding_model()
     embeddings: list[list[float]] = []
     total = len(texts)
     for i, text in enumerate(texts):
@@ -51,8 +54,9 @@ async def embed_batch(
     return embeddings
 
 
-async def check_model_available(model: str = EMBEDDING_MODEL) -> bool:
+async def check_model_available(model: str | None = None) -> bool:
     """Return True if the model is already pulled in Ollama."""
+    model = model or cfg.rag_embedding_model()
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(f"{OLLAMA_BASE}/api/tags")
@@ -64,11 +68,12 @@ async def check_model_available(model: str = EMBEDDING_MODEL) -> bool:
         return False
 
 
-async def pull_model(model: str = EMBEDDING_MODEL) -> dict[str, Any]:
+async def pull_model(model: str | None = None) -> dict[str, Any]:
     """
     Ask Ollama to pull a model (blocking until done).
     Suitable for the admin API endpoint.
     """
+    model = model or cfg.rag_embedding_model()
     try:
         async with httpx.AsyncClient(timeout=600) as client:
             resp = await client.post(
@@ -83,8 +88,9 @@ async def pull_model(model: str = EMBEDDING_MODEL) -> dict[str, Any]:
         return {"status": "error", "model": model, "error": str(e)}
 
 
-async def get_embedding_model_status(model: str = EMBEDDING_MODEL) -> dict[str, Any]:
+async def get_embedding_model_status(model: str | None = None) -> dict[str, Any]:
     """Full status check: is Ollama reachable + is the model available."""
+    model = model or cfg.rag_embedding_model()
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(f"{OLLAMA_BASE}/api/tags")

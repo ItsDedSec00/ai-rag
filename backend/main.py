@@ -18,6 +18,9 @@ from rag.upload import router as upload_router, cleanup_loop
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- startup ---
+    import config as cfg
+    cfg.load()
+
     from rag.indexer import indexer
     import asyncio
     asyncio.create_task(

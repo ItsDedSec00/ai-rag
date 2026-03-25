@@ -2,10 +2,10 @@
 # https://duelle.org
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 
-from fastapi.responses import StreamingResponse
-
+import config as cfg
 from utils.gpu import get_gpu_info
 from rag.embeddings import get_embedding_model_status, pull_model
 from rag.chroma_client import collections_stats
@@ -359,3 +359,97 @@ def files_move(req: MoveFileRequest):
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Config Manager (ADM-06)
+# ---------------------------------------------------------------------------
+
+@router.get("/config")
+def config_get():
+    """Return the full current configuration."""
+    return cfg.get()
+
+
+class ConfigUpdateRequest(BaseModel):
+    config: dict
+
+@router.post("/config")
+def config_update(req: ConfigUpdateRequest):
+    """Update (merge) configuration values."""
+    try:
+        cfg.replace_all(req.config)
+        return {"status": "ok", "config": cfg.get()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/config/export")
+def config_export():
+    """Download the current config as a JSON file."""
+    import json
+    content = json.dumps(cfg.get(), indent=2, ensure_ascii=False)
+    return JSONResponse(
+        content=cfg.get(),
+        headers={
+            "Content-Disposition": "attachment; filename=rag-config.json",
+        },
+    )
+
+
+@router.post("/config/import")
+async def config_import(file: UploadFile = File(...)):
+    """Import a config from an uploaded JSON file."""
+    import json
+    try:
+        raw = await file.read()
+        new_cfg = json.loads(raw.decode("utf-8"))
+        # Auto-snapshot before import
+        cfg.create_snapshot(label="pre_import")
+        cfg.replace_all(new_cfg)
+        return {"status": "ok", "config": cfg.get()}
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Ungültige JSON-Datei")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+class SnapshotRequest(BaseModel):
+    label: str = ""
+
+@router.post("/config/snapshot")
+def config_snapshot(req: SnapshotRequest):
+    """Create a named snapshot of the current config."""
+    result = cfg.create_snapshot(req.label)
+    return {"status": "ok", **result}
+
+
+@router.get("/config/snapshots")
+def config_snapshots():
+    """List all available config snapshots."""
+    return {"snapshots": cfg.list_snapshots()}
+
+
+class RestoreRequest(BaseModel):
+    id: str
+
+@router.post("/config/restore")
+def config_restore(req: RestoreRequest):
+    """Restore a config snapshot."""
+    try:
+        result = cfg.restore_snapshot(req.id)
+        return result
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+class DeleteSnapshotRequest(BaseModel):
+    id: str
+
+@router.post("/config/snapshot/delete")
+def config_snapshot_delete(req: DeleteSnapshotRequest):
+    """Delete a config snapshot."""
+    try:
+        return cfg.delete_snapshot(req.id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))

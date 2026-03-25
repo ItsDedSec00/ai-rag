@@ -1545,4 +1545,207 @@ footer {
     .files-actions { justify-content: flex-end; }
     .file-actions { opacity: 1; }
     .file-row { padding: 10px 14px; }
+
+    .config-row { flex-direction: column; }
+    .config-row label { min-width: unset; }
+    .config-input-sm { width: 100%; }
+    .config-io-row { flex-direction: column; }
+    .snapshot-row { flex-direction: column; gap: 8px; }
+}
+
+
+/* ============================================================
+   Config Manager (ADM-06)
+   ============================================================ */
+
+.config-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.config-group {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+}
+
+.config-group-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 14px 0;
+}
+
+.config-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0;
+}
+
+.config-row label {
+    min-width: 180px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.config-row-wide {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.config-row-wide label {
+    min-width: unset;
+    margin-bottom: 4px;
+}
+
+.config-input {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
+    width: 100%;
+    max-width: 400px;
+}
+
+.config-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.config-input[readonly] {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.config-input-sm {
+    max-width: 140px;
+}
+
+.config-textarea {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    width: 100%;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.config-textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.config-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+/* JSON preview */
+.config-json {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    font-size: 12px;
+    font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
+    color: var(--text);
+    overflow-x: auto;
+    max-height: 400px;
+    overflow-y: auto;
+    white-space: pre;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Import/Export row */
+.config-io-row {
+    display: flex;
+    gap: 24px;
+}
+
+.config-io-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.config-io-block p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+/* Snapshots */
+.snapshots-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.snapshot-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.snapshot-row:last-child {
+    border-bottom: none;
+}
+
+.snapshot-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+}
+
+.snapshot-date {
+    font-weight: 500;
+    color: var(--text);
+    font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
+}
+
+.snapshot-label {
+    background: var(--bg-muted, var(--bg));
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+}
+
+.snapshot-size {
+    font-size: 12px;
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+.snapshot-actions {
+    display: flex;
+    gap: 6px;
+}
+
+/* Panel actions in header */
+.panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }

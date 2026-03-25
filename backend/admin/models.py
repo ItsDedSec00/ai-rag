@@ -13,14 +13,12 @@ from typing import Any
 
 import httpx
 
+import config as cfg
 from utils.gpu import get_gpu_info
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "ollama")
 OLLAMA_PORT = os.getenv("OLLAMA_PORT", "11434")
 OLLAMA_BASE = f"http://{OLLAMA_HOST}:{OLLAMA_PORT}"
-
-CONFIG_PATH = os.getenv("CONFIG_PATH", "/data/config")
-CONFIG_FILE = os.path.join(CONFIG_PATH, "rag-config.json")
 
 
 # ---------------------------------------------------------------------------
@@ -384,49 +382,23 @@ async def delete_model(model: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Active model config
+# Active model config (delegates to central config module)
 # ---------------------------------------------------------------------------
-
-def _load_config() -> dict:
-    """Load rag-config.json or return defaults."""
-    try:
-        with open(CONFIG_FILE, "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
-
-def _save_config(cfg: dict):
-    """Save rag-config.json atomically."""
-    os.makedirs(CONFIG_PATH, exist_ok=True)
-    tmp = CONFIG_FILE + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(cfg, f, indent=2, ensure_ascii=False)
-    os.replace(tmp, CONFIG_FILE)
-
 
 def get_active_model() -> dict:
     """Return the current active chat model + generation params."""
-    cfg = _load_config()
-    ollama = cfg.get("ollama", {})
     return {
-        "model": os.getenv("CHAT_MODEL", ollama.get("model", "llama3.2:1b")),
-        "temperature": float(os.getenv("TEMPERATURE", ollama.get("temperature", 0.7))),
-        "top_p": ollama.get("top_p", 0.9),
-        "context_window": int(os.getenv("CONTEXT_WINDOW", ollama.get("context_window", 4096))),
-        "system_prompt": ollama.get("system_prompt", ""),
+        "model": cfg.ollama_model(),
+        "temperature": cfg.ollama_temperature(),
+        "top_p": cfg.ollama_top_p(),
+        "context_window": cfg.ollama_context_window(),
+        "system_prompt": cfg.ollama_system_prompt(),
     }
 
 
 def set_active_model(model: str) -> dict:
     """Update the active chat model in config."""
-    cfg = _load_config()
-    if "ollama" not in cfg:
-        cfg["ollama"] = {}
-    cfg["ollama"]["model"] = model
-    _save_config(cfg)
-    # Also update env for current process
-    os.environ["CHAT_MODEL"] = model
+    cfg.set_value("ollama", "model", model)
     return {"status": "ok", "model": model}
 
 
@@ -437,23 +409,20 @@ def update_generation_params(
     system_prompt: str | None = None,
 ) -> dict:
     """Update generation parameters in config."""
-    cfg = _load_config()
-    if "ollama" not in cfg:
-        cfg["ollama"] = {}
-
+    updates = {}
     if temperature is not None:
-        cfg["ollama"]["temperature"] = round(min(max(temperature, 0.0), 2.0), 2)
-        os.environ["TEMPERATURE"] = str(cfg["ollama"]["temperature"])
+        updates["temperature"] = round(min(max(temperature, 0.0), 2.0), 2)
     if top_p is not None:
-        cfg["ollama"]["top_p"] = round(min(max(top_p, 0.0), 1.0), 2)
+        updates["top_p"] = round(min(max(top_p, 0.0), 1.0), 2)
     if context_window is not None:
-        cfg["ollama"]["context_window"] = min(max(context_window, 512), 131072)
-        os.environ["CONTEXT_WINDOW"] = str(cfg["ollama"]["context_window"])
+        updates["context_window"] = min(max(context_window, 512), 131072)
     if system_prompt is not None:
-        cfg["ollama"]["system_prompt"] = system_prompt
+        updates["system_prompt"] = system_prompt
 
-    _save_config(cfg)
-    return {"status": "ok", **cfg["ollama"]}
+    if updates:
+        cfg.update_section("ollama", updates)
+
+    return {"status": "ok", **cfg.get().get("ollama", {})}
 
 
 # ---------------------------------------------------------------------------
@@ -462,12 +431,13 @@ def update_generation_params(
 
 def get_custom_models() -> list[dict]:
     """Return the list of user-added custom model IDs."""
-    cfg = _load_config()
-    return cfg.get("custom_models", [])
+    return cfg.get().get("custom_models", [])
 
 
 def add_custom_model(model_id: str) -> dict:
     """Add a custom Ollama model ID to the config."""
+    from datetime import datetime, timezone
+
     model_id = model_id.strip()
     if not model_id:
         return {"status": "error", "detail": "Modell-ID darf nicht leer sein"}
@@ -477,8 +447,8 @@ def add_custom_model(model_id: str) -> dict:
         if m["id"] == model_id:
             return {"status": "error", "detail": f"'{model_id}' ist bereits im Katalog vorhanden"}
 
-    cfg = _load_config()
-    custom = cfg.get("custom_models", [])
+    full = cfg.get()
+    custom = full.get("custom_models", [])
 
     # Check duplicates
     if any(c["id"] == model_id for c in custom):
@@ -486,26 +456,24 @@ def add_custom_model(model_id: str) -> dict:
 
     custom.append({
         "id": model_id,
-        "added_at": __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc
-        ).isoformat(),
+        "added_at": datetime.now(timezone.utc).isoformat(),
     })
-    cfg["custom_models"] = custom
-    _save_config(cfg)
+    full["custom_models"] = custom
+    cfg.replace_all(full)
 
     return {"status": "ok", "model": model_id}
 
 
 def remove_custom_model(model_id: str) -> dict:
     """Remove a custom model from the config (does NOT delete from Ollama)."""
-    cfg = _load_config()
-    custom = cfg.get("custom_models", [])
+    full = cfg.get()
+    custom = full.get("custom_models", [])
     before = len(custom)
     custom = [c for c in custom if c["id"] != model_id]
 
     if len(custom) == before:
         return {"status": "error", "detail": "Modell nicht in der Custom-Liste gefunden"}
 
-    cfg["custom_models"] = custom
-    _save_config(cfg)
+    full["custom_models"] = custom
+    cfg.replace_all(full)
     return {"status": "ok", "model": model_id}

@@ -41,7 +41,7 @@ const Models = (() => {
                 if (page) page.classList.remove('hidden');
 
                 // Update header title
-                const titles = { dashboard: 'Dashboard', models: 'Modelle', files: 'Dateien' };
+                const titles = { dashboard: 'Dashboard', models: 'Modelle', files: 'Dateien', config: 'Einstellungen' };
                 const h1 = document.querySelector('.header-title h1');
                 if (h1) h1.textContent = titles[tab] || tab;
 
@@ -52,6 +52,10 @@ const Models = (() => {
                 // Load files data on first visit
                 if (tab === 'files' && typeof Files !== 'undefined') {
                     Files.load();
+                }
+                // Load config data on first visit
+                if (tab === 'config' && typeof Config !== 'undefined') {
+                    Config.load();
                 }
             });
         });

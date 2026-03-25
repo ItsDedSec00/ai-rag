@@ -1,0 +1,287 @@
+# RAG-Chat — © 2026 David Dülle
+# https://duelle.org
+
+"""
+Central configuration — single source of truth.
+-------------------------------------------------
+Priority: rag-config.json > environment variables > hardcoded defaults.
+
+On startup the saved config file is loaded.  Admin API changes are
+written to the file *and* update the in-memory state so they take
+effect immediately and survive container restarts.
+
+Snapshots are timestamped copies stored alongside the main file.
+"""
+
+import json
+import logging
+import os
+import shutil
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+CONFIG_PATH = os.getenv("CONFIG_PATH", "/data/config")
+CONFIG_FILE = os.path.join(CONFIG_PATH, "rag-config.json")
+SNAPSHOT_DIR = os.path.join(CONFIG_PATH, "snapshots")
+
+# ──────────────────────────────────────────────────────────────────────
+# Default values (used when neither file nor env var provides a value)
+# ──────────────────────────────────────────────────────────────────────
+
+_DEFAULTS: dict[str, Any] = {
+    "ollama": {
+        "model": "llama3.2:1b",
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "context_window": 4096,
+        "system_prompt": (
+            "Du bist ein hilfreicher Assistent. Beantworte die Frage des Nutzers "
+            "basierend auf dem folgenden Kontext. Wenn der Kontext keine Antwort "
+            "enthält, sage ehrlich, dass du es nicht weißt. "
+            "Antworte auf Deutsch, es sei denn der Nutzer fragt in einer anderen Sprache."
+        ),
+    },
+    "rag": {
+        "embedding_model": "nomic-embed-text",
+        "chunk_size": 1000,
+        "chunk_overlap": 200,
+        "top_k": 5,
+    },
+    "server": {
+        "max_upload_mb": 10,
+        "session_timeout_min": 30,
+    },
+    "custom_models": [],
+}
+
+# Map env-var names → config paths for initial seeding
+_ENV_MAP: dict[str, tuple[str, str, type]] = {
+    "CHAT_MODEL":          ("ollama", "model", str),
+    "TEMPERATURE":         ("ollama", "temperature", float),
+    "TOP_P":               ("ollama", "top_p", float),
+    "CONTEXT_WINDOW":      ("ollama", "context_window", int),
+    "SYSTEM_PROMPT":       ("ollama", "system_prompt", str),
+    "EMBEDDING_MODEL":     ("rag", "embedding_model", str),
+    "CHUNK_SIZE":          ("rag", "chunk_size", int),
+    "CHUNK_OVERLAP":       ("rag", "chunk_overlap", int),
+    "RAG_TOP_K":           ("rag", "top_k", int),
+    "MAX_UPLOAD_MB":       ("server", "max_upload_mb", int),
+    "SESSION_TIMEOUT_MIN": ("server", "session_timeout_min", int),
+}
+
+
+# ──────────────────────────────────────────────────────────────────────
+# In-memory state (loaded once, updated by setters)
+# ──────────────────────────────────────────────────────────────────────
+
+_cfg: dict[str, Any] = {}
+_loaded = False
+
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Recursively merge *override* into *base* (in-place)."""
+    for k, v in override.items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _deep_merge(base[k], v)
+        else:
+            base[k] = v
+    return base
+
+
+def load() -> dict[str, Any]:
+    """Load config: defaults ← env vars ← saved file.  Idempotent."""
+    global _cfg, _loaded
+
+    # 1. Start with defaults
+    import copy
+    _cfg = copy.deepcopy(_DEFAULTS)
+
+    # 2. Override with environment variables (docker-compose)
+    for env_key, (section, key, typ) in _ENV_MAP.items():
+        val = os.environ.get(env_key)
+        if val is not None:
+            try:
+                _cfg.setdefault(section, {})[key] = typ(val)
+            except (ValueError, TypeError):
+                pass
+
+    # 3. Override with saved config file (highest priority)
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+            _deep_merge(_cfg, saved)
+            logger.info("Config loaded from %s", CONFIG_FILE)
+        except Exception as e:
+            logger.warning("Could not load config file: %s", e)
+    else:
+        logger.info("No config file found — using defaults + env vars")
+        # Write initial config so it exists for next time
+        save()
+
+    _loaded = True
+    return _cfg
+
+
+def save() -> None:
+    """Persist current config to disk (atomic write)."""
+    os.makedirs(CONFIG_PATH, exist_ok=True)
+    tmp = CONFIG_FILE + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(_cfg, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, CONFIG_FILE)
+        logger.debug("Config saved to %s", CONFIG_FILE)
+    except Exception as e:
+        logger.error("Failed to save config: %s", e)
+
+
+def get() -> dict[str, Any]:
+    """Return the full config dict (read-only copy)."""
+    if not _loaded:
+        load()
+    import copy
+    return copy.deepcopy(_cfg)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Typed getters for hot-path reads (no copy overhead)
+# ──────────────────────────────────────────────────────────────────────
+
+def ollama_model() -> str:
+    if not _loaded: load()
+    return _cfg.get("ollama", {}).get("model", "llama3.2:1b")
+
+def ollama_temperature() -> float:
+    if not _loaded: load()
+    return float(_cfg.get("ollama", {}).get("temperature", 0.7))
+
+def ollama_top_p() -> float:
+    if not _loaded: load()
+    return float(_cfg.get("ollama", {}).get("top_p", 0.9))
+
+def ollama_context_window() -> int:
+    if not _loaded: load()
+    return int(_cfg.get("ollama", {}).get("context_window", 4096))
+
+def ollama_system_prompt() -> str:
+    if not _loaded: load()
+    return _cfg.get("ollama", {}).get("system_prompt", "")
+
+def rag_top_k() -> int:
+    if not _loaded: load()
+    return int(_cfg.get("rag", {}).get("top_k", 5))
+
+def rag_embedding_model() -> str:
+    if not _loaded: load()
+    return _cfg.get("rag", {}).get("embedding_model", "nomic-embed-text")
+
+def rag_chunk_size() -> int:
+    if not _loaded: load()
+    return int(_cfg.get("rag", {}).get("chunk_size", 1000))
+
+def rag_chunk_overlap() -> int:
+    if not _loaded: load()
+    return int(_cfg.get("rag", {}).get("chunk_overlap", 200))
+
+def server_max_upload_mb() -> int:
+    if not _loaded: load()
+    return int(_cfg.get("server", {}).get("max_upload_mb", 10))
+
+def server_session_timeout_min() -> int:
+    if not _loaded: load()
+    return int(_cfg.get("server", {}).get("session_timeout_min", 30))
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Setters (update in-memory + persist)
+# ──────────────────────────────────────────────────────────────────────
+
+def set_value(section: str, key: str, value: Any) -> None:
+    """Set a single config value, save, and return."""
+    if not _loaded: load()
+    _cfg.setdefault(section, {})[key] = value
+    save()
+
+
+def update_section(section: str, values: dict[str, Any]) -> None:
+    """Merge values into a section."""
+    if not _loaded: load()
+    _cfg.setdefault(section, {})
+    _cfg[section].update(values)
+    save()
+
+
+def replace_all(new_cfg: dict[str, Any]) -> None:
+    """Replace the entire config (e.g. import). Validates structure."""
+    global _cfg
+    if not isinstance(new_cfg, dict):
+        raise ValueError("Config must be a JSON object")
+    # Merge onto defaults so required keys are never missing
+    import copy
+    merged = copy.deepcopy(_DEFAULTS)
+    _deep_merge(merged, new_cfg)
+    _cfg = merged
+    save()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Snapshots
+# ──────────────────────────────────────────────────────────────────────
+
+def create_snapshot(label: str = "") -> dict[str, str]:
+    """Copy current config file into snapshots/ with timestamp."""
+    if not _loaded: load()
+    save()  # make sure file is up-to-date
+    os.makedirs(SNAPSHOT_DIR, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    snap_name = f"{ts}_{label}" if label else ts
+    snap_path = os.path.join(SNAPSHOT_DIR, f"{snap_name}.json")
+    shutil.copy2(CONFIG_FILE, snap_path)
+    logger.info("Snapshot created: %s", snap_name)
+    return {"id": snap_name, "path": snap_path}
+
+
+def list_snapshots() -> list[dict[str, Any]]:
+    """Return available snapshots sorted newest-first."""
+    if not os.path.isdir(SNAPSHOT_DIR):
+        return []
+    snaps = []
+    for f in sorted(Path(SNAPSHOT_DIR).glob("*.json"), reverse=True):
+        stat = f.stat()
+        snaps.append({
+            "id": f.stem,
+            "filename": f.name,
+            "size_bytes": stat.st_size,
+            "created": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+        })
+    return snaps
+
+
+def restore_snapshot(snap_id: str) -> dict[str, str]:
+    """Restore a snapshot, creating a backup of current config first."""
+    snap_path = os.path.join(SNAPSHOT_DIR, f"{snap_id}.json")
+    if not os.path.exists(snap_path):
+        raise FileNotFoundError(f"Snapshot '{snap_id}' nicht gefunden")
+
+    # Backup current config before overwriting
+    create_snapshot(label="pre_restore")
+
+    # Read and apply snapshot
+    with open(snap_path, "r", encoding="utf-8") as f:
+        snap_cfg = json.load(f)
+    replace_all(snap_cfg)
+    logger.info("Restored snapshot: %s", snap_id)
+    return {"status": "ok", "restored": snap_id}
+
+
+def delete_snapshot(snap_id: str) -> dict[str, str]:
+    """Delete a snapshot file."""
+    snap_path = os.path.join(SNAPSHOT_DIR, f"{snap_id}.json")
+    if not os.path.exists(snap_path):
+        raise FileNotFoundError(f"Snapshot '{snap_id}' nicht gefunden")
+    os.unlink(snap_path)
+    return {"status": "ok", "deleted": snap_id}

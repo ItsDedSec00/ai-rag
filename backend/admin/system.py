@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from threading import Lock
 
 import psutil
+import config as cfg
 
 from utils.gpu import get_gpu_info
 
@@ -96,9 +97,9 @@ def get_system_info() -> dict:
     # GPU (cached call)
     gpu = get_gpu_info()
 
-    # Ollama model from env
-    chat_model = os.getenv("CHAT_MODEL", "unknown")
-    embedding_model = os.getenv("EMBEDDING_MODEL", "unknown")
+    # Ollama model from config
+    chat_model = cfg.ollama_model()
+    embedding_model = cfg.rag_embedding_model()
 
     return {
         "hostname": platform.node(),
