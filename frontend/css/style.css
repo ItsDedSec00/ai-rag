@@ -17,13 +17,13 @@
     --accent-hover: #1d4ed8;
     --accent-light: #dbeafe;
     --border: #e5e7eb;
-    --msg-user-bg: #2563eb;
+    --msg-user-bg: #374151;
     --msg-user-text: #ffffff;
     --msg-bot-bg: #f0f2f5;
     --msg-bot-text: #1a1a2e;
     --source-bg: #f8fafc;
     --source-border: #e2e8f0;
-    --score-bar: #2563eb;
+    --score-bar: #6366f1;
     --error-bg: #fef2f2;
     --error-text: #dc2626;
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
@@ -45,13 +45,13 @@
     --accent-hover: #74c7ec;
     --accent-light: #1e3a5f;
     --border: #45475a;
-    --msg-user-bg: #89b4fa;
-    --msg-user-text: #1e1e2e;
+    --msg-user-bg: #4b5563;
+    --msg-user-text: #f3f4f6;
     --msg-bot-bg: #313244;
     --msg-bot-text: #cdd6f4;
     --source-bg: #181825;
     --source-border: #45475a;
-    --score-bar: #89b4fa;
+    --score-bar: #818cf8;
     --error-bg: #3b1219;
     --error-text: #f38ba8;
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
@@ -287,7 +287,9 @@ button {
 }
 
 .message.user .msg-avatar { background: var(--msg-user-bg); color: var(--msg-user-text); }
-.message.bot .msg-avatar  { background: var(--accent-light); color: var(--accent); }
+.message.bot .msg-avatar  { background: #e0e7ff; color: #4338ca; }
+
+[data-theme="dark"] .message.bot .msg-avatar { background: #312e81; color: #a5b4fc; }
 
 .msg-content {
     padding: 12px 16px;
