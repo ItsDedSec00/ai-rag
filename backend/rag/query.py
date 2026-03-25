@@ -9,10 +9,11 @@ POST /api/chat flow:
 5. Send source attribution as final SSE event
 
 SSE event format:
-  data: {"type": "token",   "content": "..."}
-  data: {"type": "sources", "sources": [...]}
+  data: {"type": "thinking", "content": "..."}   ← DeepSeek-R1 reasoning
+  data: {"type": "token",    "content": "..."}
+  data: {"type": "sources",  "sources": [...]}
   data: {"type": "done"}
-  data: {"type": "error",   "message": "..."}
+  data: {"type": "error",    "message": "..."}
 """
 
 import asyncio
@@ -27,7 +28,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from rag.embeddings import embed_text
-from rag.chroma_client import similarity_search, list_collections
+from rag.chroma_client import similarity_search, list_collection_names
 from rag.upload import session_search
 
 logger = logging.getLogger(__name__)
@@ -119,21 +120,18 @@ async def _retrieve_context(
         all_results.extend(session_results)
 
     # --- ChromaDB knowledge base search ---
+    # Use collection names directly (not metadata) to avoid v2 compat issues
     if collection:
-        folders = [collection]
+        col_names = [collection]
     else:
-        cols = await asyncio.to_thread(list_collections)
-        folders = [
-            (c.get("metadata") or {}).get("folder", c.get("name", "default"))
-            for c in cols
-        ]
-        if not folders:
-            folders = ["default"]
+        col_names = await asyncio.to_thread(list_collection_names)
 
-    for folder in folders:
+    logger.debug("Searching %d collection(s): %s", len(col_names), col_names)
+
+    for col_name in col_names:
         try:
             result = await asyncio.to_thread(
-                similarity_search, folder, query_embedding, top_k
+                similarity_search, col_name, query_embedding, top_k
             )
             docs = result.get("documents", [[]])[0]
             metas = result.get("metadatas", [[]])[0]
@@ -148,7 +146,7 @@ async def _retrieve_context(
                     "folder": (meta or {}).get("folder", "default"),
                 })
         except Exception as e:
-            logger.warning("Search in folder '%s' failed: %s", folder, e)
+            logger.warning("Search in collection '%s' failed: %s", col_name, e)
 
     # Sort by score descending, take top_k
     all_results.sort(key=lambda x: x["score"], reverse=True)
@@ -189,6 +187,12 @@ async def _stream_ollama(
     Stream Ollama /api/generate response as SSE events.
     Yields: token events, then sources, then done.
     """
+    # State machine for <think>...</think> reasoning blocks
+    # States: "detect" → "thinking" → "answering"
+    in_thinking = False
+    thinking_detected = False
+    token_buffer = ""
+
     try:
         async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream(
@@ -222,9 +226,65 @@ async def _stream_ollama(
 
                     token = chunk.get("response", "")
                     if token:
-                        yield _sse("token", {"content": token})
+                        # Buffer tokens to detect <think> / </think> tags
+                        token_buffer += token
+
+                        # Detect opening <think>
+                        if not thinking_detected and "<think>" in token_buffer:
+                            thinking_detected = True
+                            in_thinking = True
+                            # Send "thinking_start" event
+                            yield _sse("thinking_start", {})
+                            # Strip the <think> tag and send remaining as thinking
+                            after = token_buffer.split("<think>", 1)[1]
+                            token_buffer = ""
+                            if after:
+                                yield _sse("thinking", {"content": after})
+                            continue
+
+                        # Inside thinking block
+                        if in_thinking:
+                            if "</think>" in token_buffer:
+                                # End of thinking
+                                before_end = token_buffer.split("</think>", 1)[0]
+                                after_end = token_buffer.split("</think>", 1)[1]
+                                if before_end:
+                                    yield _sse("thinking", {"content": before_end})
+                                yield _sse("thinking_end", {})
+                                in_thinking = False
+                                token_buffer = ""
+                                # Send remaining text after </think> as normal token
+                                after_end = after_end.lstrip("\n")
+                                if after_end:
+                                    yield _sse("token", {"content": after_end})
+                            else:
+                                # Still thinking — flush buffer but keep last
+                                # 10 chars in case </think> spans chunks
+                                if len(token_buffer) > 10:
+                                    flush = token_buffer[:-10]
+                                    token_buffer = token_buffer[-10:]
+                                    yield _sse("thinking", {"content": flush})
+                            continue
+
+                        # Normal token (no thinking)
+                        # Flush buffer if it's long enough that <think> won't appear
+                        if len(token_buffer) > 10 or thinking_detected:
+                            yield _sse("token", {"content": token_buffer})
+                            token_buffer = ""
+                        elif len(token_buffer) > 10:
+                            flush = token_buffer[:-7]
+                            token_buffer = token_buffer[-7:]
+                            yield _sse("token", {"content": flush})
 
                     if chunk.get("done", False):
+                        # Flush remaining buffer
+                        if token_buffer:
+                            evt = "thinking" if in_thinking else "token"
+                            yield _sse(evt, {"content": token_buffer})
+                            token_buffer = ""
+                        if in_thinking:
+                            yield _sse("thinking_end", {})
+
                         # Include generation stats
                         stats = {}
                         if "total_duration" in chunk:

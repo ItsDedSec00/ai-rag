@@ -238,28 +238,29 @@ def get_gpu_info() -> dict[str, Any]:
     nvidia = _detect_nvidia()
     if nvidia:
         total_vram = sum(g["vram_total_mb"] for g in nvidia)
-        # Use GPU with most VRAM for recommendation
-        max_vram = max(g["vram_total_mb"] for g in nvidia)
+        # Multi-GPU: Ollama can split models across GPUs, so use total VRAM
+        # Single GPU: total == max, no difference
         return {
             "mode": "nvidia",
             "gpus": nvidia,
+            "gpu_count": len(nvidia),
             "cpu": cpu,
-            "recommendation": _recommend(max_vram, ram_gb),
+            "recommendation": _recommend(total_vram, ram_gb),
             "cuda_visible_devices": os.getenv("CUDA_VISIBLE_DEVICES", "all"),
             "total_vram_mb": total_vram,
         }
 
     amd = _detect_amd()
     if amd:
-        max_vram = max(
-            (g["vram_total_mb"] for g in amd if g["vram_total_mb"]),
-            default=None,
-        )
+        vram_values = [g["vram_total_mb"] for g in amd if g["vram_total_mb"]]
+        total_vram = sum(vram_values) if vram_values else None
         return {
             "mode": "amd",
             "gpus": amd,
+            "gpu_count": len(amd),
             "cpu": cpu,
-            "recommendation": _recommend(max_vram, ram_gb),
+            "recommendation": _recommend(total_vram, ram_gb),
+            "total_vram_mb": total_vram,
             "note": "AMD GPU detected. Ollama uses CPU unless ROCm is installed.",
         }
 

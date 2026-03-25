@@ -20,11 +20,11 @@
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
                     Dashboard
                 </a>
-                <a href="#" class="nav-item disabled" data-tab="models">
+                <a href="#" class="nav-item" data-tab="models">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                     Modelle
                 </a>
-                <a href="#" class="nav-item disabled" data-tab="files">
+                <a href="#" class="nav-item" data-tab="files">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                     Dateien
                 </a>
@@ -209,6 +209,268 @@
                 </section>
             </div>
 
+            <!-- ============================================================
+                 Models page (ADM-02)
+                 ============================================================ -->
+            <div id="models" class="page-content hidden">
+
+                <!-- Hardware info + recommendation -->
+                <section class="panel recommendation-panel">
+                    <div class="panel-header">
+                        <h2>Deine Hardware</h2>
+                    </div>
+                    <div class="rec-hardware" id="rec-hardware">
+                        <div class="rec-hw-icon">🖥️</div>
+                        <div>
+                            <div class="rec-hw-summary" id="rec-hw-summary">Wird erkannt…</div>
+                            <div class="rec-hw-hint" id="rec-hw-hint"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="panel recommendation-panel">
+                    <div class="panel-header">
+                        <h2>Empfehlung für dein System</h2>
+                    </div>
+                    <div class="rec-best" id="rec-best">
+                        <div class="rec-best-placeholder muted" style="padding:20px">Wird berechnet…</div>
+                    </div>
+                </section>
+
+                <!-- Active model + params -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>Aktives Modell &amp; Einstellungen</h2>
+                    </div>
+                    <div class="active-model-row">
+                        <div class="active-model-info">
+                            <span class="active-label">Aktiv:</span>
+                            <span class="active-name" id="active-model-name">—</span>
+                        </div>
+                    </div>
+                    <div class="params-grid">
+                        <div class="param">
+                            <label for="param-temp">Temperatur <span class="param-val" id="param-temp-val">0.7</span></label>
+                            <input type="range" id="param-temp" min="0" max="2" step="0.05" value="0.7">
+                            <div class="param-hint">Niedrig = präzise Antworten · Hoch = kreativer</div>
+                        </div>
+                        <div class="param">
+                            <label for="param-topp">Top-P <span class="param-val" id="param-topp-val">0.9</span></label>
+                            <input type="range" id="param-topp" min="0" max="1" step="0.05" value="0.9">
+                            <div class="param-hint">Steuert die Vielfalt der Wortauswahl</div>
+                        </div>
+                        <div class="param">
+                            <label for="param-ctx">Kontextfenster <span class="param-val" id="param-ctx-val">4096</span></label>
+                            <input type="range" id="param-ctx" min="512" max="32768" step="512" value="4096">
+                            <div class="param-hint">Wie viel Text die KI auf einmal lesen kann</div>
+                        </div>
+                    </div>
+                    <div class="param system-prompt-param">
+                        <label for="param-prompt">System-Prompt</label>
+                        <textarea id="param-prompt" rows="3" placeholder="Optionale Anweisung für die KI, z. B. 'Antworte immer auf Deutsch und in einfacher Sprache.'"></textarea>
+                        <div class="param-hint">Dieser Text wird der KI als Grundanweisung mitgegeben</div>
+                    </div>
+                    <div class="params-actions">
+                        <button id="btn-save-params" class="btn-sm">Einstellungen speichern</button>
+                        <span id="params-saved-msg" class="saved-msg hidden">Gespeichert ✓</span>
+                    </div>
+                </section>
+
+                <!-- Custom model -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>Eigenes Modell hinzufügen</h2>
+                    </div>
+                    <div class="custom-model-row">
+                        <div class="custom-model-info">
+                            Gib eine Ollama-Modell-ID ein (z.&thinsp;B. <code>gemma2:9b</code> oder <code>mistral:latest</code>).
+                            Das Modell wird dann zum Download angeboten.
+                        </div>
+                        <div class="custom-model-form">
+                            <input type="text" id="custom-model-input" class="custom-model-input" placeholder="ollama-modell-id:tag" autocomplete="off">
+                            <button id="btn-add-custom" class="btn-sm btn-accent">Hinzufügen</button>
+                        </div>
+                        <div id="custom-model-msg" class="custom-model-msg hidden"></div>
+                    </div>
+                </section>
+
+                <!-- Model catalog -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>Alle Modelle</h2>
+                        <span class="muted" id="installed-count"></span>
+                    </div>
+                    <div id="model-catalog" class="model-catalog">
+                        <div class="muted" style="padding:20px">Lädt…</div>
+                    </div>
+                </section>
+
+                <!-- Pull progress bar (non-blocking, persists across tabs) -->
+                <div id="pull-bar" class="pull-bar hidden">
+                    <div class="pull-bar-inner">
+                        <div class="pull-bar-text">
+                            <span class="pull-bar-label">Download:</span>
+                            <span id="pull-bar-name" class="pull-bar-name">—</span>
+                            <span id="pull-bar-status" class="pull-bar-status">Starte…</span>
+                        </div>
+                        <button id="pull-bar-cancel" class="btn-sm pull-bar-btn">Abbrechen</button>
+                    </div>
+                    <div class="pull-bar-track">
+                        <div class="pull-bar-fill" id="pull-bar-fill"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 Files page (ADM-03)
+                 ============================================================ -->
+            <div id="files" class="page-content hidden">
+
+                <!-- Stats strip -->
+                <section class="kpi-strip">
+                    <div class="kpi">
+                        <div class="kpi-value" id="files-total">0</div>
+                        <div class="kpi-label">Dateien</div>
+                    </div>
+                    <div class="kpi-divider"></div>
+                    <div class="kpi">
+                        <div class="kpi-value" id="files-indexed">0</div>
+                        <div class="kpi-label">Indexiert</div>
+                    </div>
+                    <div class="kpi-divider"></div>
+                    <div class="kpi">
+                        <div class="kpi-value" id="files-pending">0</div>
+                        <div class="kpi-label">Ausstehend</div>
+                    </div>
+                    <div class="kpi-divider"></div>
+                    <div class="kpi">
+                        <div class="kpi-value" id="files-size">0 B</div>
+                        <div class="kpi-label">Gesamtgröße</div>
+                    </div>
+                </section>
+
+                <!-- ZIP info -->
+                <section class="panel">
+                    <div class="info-box">
+                        <div class="info-box-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        </div>
+                        <div class="info-box-text">
+                            <strong>ZIP-Upload:</strong> Lade ZIP-Archive hoch, um viele Dateien auf einmal zu importieren.
+                            Die Ordnerstruktur innerhalb der ZIP-Datei bleibt erhalten.
+                            Nur unterstützte Dateitypen (PDF, DOCX, TXT, MD, CSV) werden extrahiert — andere Dateien werden automatisch übersprungen.
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Toolbar: breadcrumb + actions -->
+                <section class="panel">
+                    <div class="files-toolbar">
+                        <div class="files-breadcrumb" id="files-breadcrumb">
+                            <a href="#" class="breadcrumb-item" data-path="">Wissensbasis</a>
+                        </div>
+                        <div class="files-actions">
+                            <button id="btn-new-folder" class="btn-sm" title="Neuer Ordner">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+                                Neuer Ordner
+                            </button>
+                            <button id="btn-upload-file" class="btn-sm btn-accent" title="Dateien hochladen">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                Hochladen
+                            </button>
+                            <input type="file" id="file-upload-input" multiple accept=".pdf,.docx,.txt,.md,.csv,.zip" class="hidden">
+                        </div>
+                    </div>
+
+                    <!-- Drop zone -->
+                    <div id="files-dropzone" class="files-dropzone">
+                        <div class="dropzone-icon">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        </div>
+                        <div class="dropzone-text">Dateien hierher ziehen</div>
+                        <div class="dropzone-hint">PDF, DOCX, TXT, MD, CSV oder ZIP-Archiv (max. 50 MB)</div>
+                    </div>
+
+                    <!-- File list -->
+                    <div id="files-list" class="files-list">
+                        <div class="muted">Lädt…</div>
+                    </div>
+                </section>
+
+                <!-- Upload progress overlay -->
+                <div id="upload-overlay" class="pull-overlay hidden">
+                    <div class="pull-card">
+                        <h3 id="upload-title">Dateien werden hochgeladen…</h3>
+                        <div class="pull-progress-bar">
+                            <div class="pull-progress-fill" id="upload-fill"></div>
+                        </div>
+                        <div class="pull-status" id="upload-status">Starte Upload…</div>
+                    </div>
+                </div>
+
+                <!-- Duplicate conflict dialog -->
+                <div id="conflict-dialog" class="pull-overlay hidden">
+                    <div class="pull-card conflict-card">
+                        <h3>Dateien existieren bereits</h3>
+                        <p id="conflict-count" class="conflict-subtitle">Dateien existieren bereits:</p>
+                        <div id="conflict-file-list" class="conflict-file-list"></div>
+                        <p class="conflict-question">Was soll mit diesen Dateien passieren?</p>
+                        <div class="conflict-actions">
+                            <button id="btn-conflict-skip" class="btn-sm" title="Bestehende Dateien behalten, neue nicht hochladen">
+                                Überspringen
+                            </button>
+                            <button id="btn-conflict-rename" class="btn-sm btn-accent" title="Neue Dateien mit angehängter Nummer hochladen">
+                                Umbenennen
+                            </button>
+                            <button id="btn-conflict-overwrite" class="btn-sm btn-red" title="Bestehende Dateien ersetzen">
+                                Überschreiben
+                            </button>
+                        </div>
+                        <div class="conflict-cancel">
+                            <button onclick="Files.cancelConflict()" class="btn-sm">Abbrechen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- New folder dialog -->
+                <div id="folder-dialog" class="pull-overlay hidden">
+                    <div class="pull-card">
+                        <h3>Neuer Ordner</h3>
+                        <input type="text" id="folder-name-input" class="dialog-input" placeholder="Ordnername eingeben…" autocomplete="off">
+                        <div class="dialog-actions">
+                            <button id="btn-folder-cancel" class="btn-sm">Abbrechen</button>
+                            <button id="btn-folder-create" class="btn-sm btn-accent">Erstellen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rename dialog -->
+                <div id="rename-dialog" class="pull-overlay hidden">
+                    <div class="pull-card">
+                        <h3>Datei umbenennen</h3>
+                        <input type="text" id="rename-input" class="dialog-input" placeholder="Neuer Dateiname…" autocomplete="off">
+                        <p id="rename-hint" class="dialog-hint"></p>
+                        <div class="dialog-actions">
+                            <button id="btn-rename-cancel" class="btn-sm">Abbrechen</button>
+                            <button id="btn-rename-confirm" class="btn-sm btn-accent">Umbenennen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Move dialog -->
+                <div id="move-dialog" class="pull-overlay hidden">
+                    <div class="pull-card">
+                        <h3>Datei verschieben</h3>
+                        <div id="move-folder-list" class="move-folder-list"></div>
+                        <div class="dialog-actions">
+                            <button id="btn-move-cancel" class="btn-sm">Abbrechen</button>
+                            <button id="btn-move-confirm" class="btn-sm btn-accent">Verschieben</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
             <footer>
                 &copy; 2026 <a href="https://duelle.org" target="_blank" rel="noopener">David Dülle</a> · RAG-Chat
             </footer>
@@ -216,5 +478,7 @@
     </div>
 
     <script src="/admin/js/dashboard.js"></script>
+    <script src="/admin/js/models.js"></script>
+    <script src="/admin/js/files.js"></script>
 </body>
 </html>

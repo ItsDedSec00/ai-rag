@@ -25,7 +25,7 @@ from watchdog.observers import Observer
 
 from rag.parser import parse_file, SUPPORTED_EXTENSIONS
 from rag.embeddings import embed_batch
-from rag.chroma_client import add_chunks, delete_by_source, folder_to_collection
+from rag.chroma_client import add_chunks, delete_by_source, folder_to_collection, list_collection_names
 
 logger = logging.getLogger(__name__)
 
@@ -323,8 +323,37 @@ class IndexerService:
     # ------------------------------------------------------------------
 
     async def _run(self) -> None:
+        await self._verify_chromadb()
         await self._initial_index()
         await self._watch_loop()
+
+    async def _verify_chromadb(self) -> None:
+        """Check that indexed files still have their collections in ChromaDB.
+        If a collection is missing (e.g. after ChromaDB data loss), mark
+        those files as needing re-indexing."""
+        try:
+            existing = set(await asyncio.to_thread(list_collection_names))
+        except Exception as e:
+            logger.warning("Could not verify ChromaDB collections: %s", e)
+            return
+
+        invalidated = 0
+        for path, rec in list(self._state.files.items()):
+            if rec.status != "indexed":
+                continue
+            if rec.collection not in existing:
+                logger.info("Collection '%s' missing in ChromaDB, will re-index: %s",
+                            rec.collection, os.path.basename(path))
+                rec.status = "pending"
+                rec.hash = ""  # force re-index
+                self._state.files[path] = rec
+                invalidated += 1
+
+        if invalidated:
+            self._state.save()
+            logger.warning("Invalidated %d files due to missing ChromaDB collections", invalidated)
+        else:
+            logger.info("ChromaDB verification OK — all collections present")
 
     async def _initial_index(self) -> None:
         """Scan knowledge_path and index all new or changed files."""

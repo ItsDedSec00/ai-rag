@@ -467,6 +467,55 @@ button {
     color: var(--text-muted);
 }
 
+/* --- Reasoning / Thinking block (DeepSeek-R1, GPT-OSS) --- */
+
+.thinking-block {
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    overflow: hidden;
+}
+
+.thinking-summary {
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.thinking-summary::-webkit-details-marker { display: none; }
+
+.thinking-summary::before {
+    content: '▶';
+    font-size: 0.6rem;
+    transition: transform 0.2s;
+}
+
+.thinking-block[open] .thinking-summary::before {
+    transform: rotate(90deg);
+}
+
+.thinking-content {
+    padding: 8px 12px 12px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    border-top: 1px solid var(--border);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.thinking-content p { margin-bottom: 6px; }
+
+.answer-content { margin-top: 0; }
+
 /* ===================================================================
    Thinking Indicator (Claude-style rotating words)
    =================================================================== */

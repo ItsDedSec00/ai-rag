@@ -159,6 +159,14 @@ def list_collections() -> list[dict[str, Any]]:
     return data
 
 
+def list_collection_names() -> list[str]:
+    """Return all ChromaDB collection names (reliable, metadata-independent)."""
+    cols = list_collections()
+    names = [c.get("name") for c in cols if c.get("name")]
+    logger.debug("ChromaDB collections: %s", names)
+    return names or ["default"]
+
+
 def delete_collection(folder: str) -> bool:
     name = folder_to_collection(folder)
     try:
@@ -225,7 +233,8 @@ def similarity_search(
     n_results: int = 5,
     where: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Return top-k similar chunks."""
+    """Return top-k similar chunks.  *folder* can be a folder name OR a
+    sanitized collection name (idempotent via folder_to_collection)."""
     name = get_or_create_collection(folder)
     col_id = _get_collection_id(name)
 

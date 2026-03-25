@@ -333,6 +333,9 @@ const Chat = (() => {
 
         let contentDiv = null;
         let fullText = '';
+        let thinkingText = '';
+        let thinkingDiv = null;
+        let isThinking = false;
         let lastSources = null;
         let lastStats = null;
         const messages = document.getElementById('messages');
@@ -369,15 +372,55 @@ const Chat = (() => {
                     try { event = JSON.parse(line.slice(6)); }
                     catch (_) { continue; }
 
-                    if (event.type === 'token') {
+                    if (event.type === 'thinking_start') {
+                        // Create message container + collapsible thinking block
+                        if (!contentDiv) {
+                            UI.showTyping(false);
+                            contentDiv = addMessage('bot', '');
+                        }
+                        isThinking = true;
+                        thinkingText = '';
+                        thinkingDiv = document.createElement('details');
+                        thinkingDiv.className = 'thinking-block';
+                        thinkingDiv.innerHTML = '<summary class="thinking-summary">Denkprozess</summary><div class="thinking-content"></div>';
+                        thinkingDiv.open = true;
+                        contentDiv.appendChild(thinkingDiv);
+                        UI.scrollToBottom(messages);
+
+                    } else if (event.type === 'thinking') {
+                        thinkingText += event.content;
+                        if (thinkingDiv) {
+                            const tc = thinkingDiv.querySelector('.thinking-content');
+                            if (tc) tc.innerHTML = renderMarkdown(thinkingText);
+                        }
+                        UI.scrollToBottom(messages);
+
+                    } else if (event.type === 'thinking_end') {
+                        isThinking = false;
+                        if (thinkingDiv) {
+                            // Collapse thinking block, show final content
+                            thinkingDiv.open = false;
+                            const summary = thinkingDiv.querySelector('.thinking-summary');
+                            if (summary) summary.textContent = 'Denkprozess anzeigen';
+                        }
+
+                    } else if (event.type === 'token') {
                         if (!contentDiv) {
                             UI.showTyping(false);
                             contentDiv = addMessage('bot', '');
                         }
                         fullText += event.content;
-                        contentDiv.innerHTML = renderMarkdown(fullText);
+                        // Render answer after the thinking block
+                        let answerDiv = contentDiv.querySelector('.answer-content');
+                        if (!answerDiv && thinkingDiv) {
+                            answerDiv = document.createElement('div');
+                            answerDiv.className = 'answer-content';
+                            contentDiv.appendChild(answerDiv);
+                        }
+                        const target = answerDiv || contentDiv;
+                        target.innerHTML = renderMarkdown(fullText);
                         if (typeof hljs !== 'undefined') {
-                            contentDiv.querySelectorAll('pre code').forEach((block) => {
+                            target.querySelectorAll('pre code').forEach((block) => {
                                 if (!block.dataset.highlighted) {
                                     hljs.highlightElement(block);
                                     block.dataset.highlighted = 'true';
