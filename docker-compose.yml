@@ -59,9 +59,7 @@ services:
       - knowledge_data:/data/knowledge
       - config_data:/data/config
       - logs_data:/data/logs
-      - ./.gpu-mode:/data/.gpu-mode:ro
       - ./.update-flag:/data/.update-flag
-      - ./nginx/htpasswd:/data/nginx/htpasswd
     depends_on:
       ollama:
         condition: service_started
@@ -77,14 +75,18 @@ services:
       - rag-network
 
   nginx:
-    image: nginx:alpine
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
     container_name: rag-nginx
     restart: unless-stopped
+    environment:
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
     ports:
       - "${HTTP_PORT:-8080}:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/htpasswd:/etc/nginx/htpasswd:ro
       - ./frontend:/usr/share/nginx/html/frontend:ro
       - ./admin:/usr/share/nginx/html/admin:ro
     depends_on:
