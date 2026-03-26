@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
     try:
         with open("/data/.gpu-mode", "r") as f:
             host_gpu_mode = f.read().strip()
-    except FileNotFoundError:
+    except (FileNotFoundError, IsADirectoryError, OSError):
         pass
 
     # Determine banner status
