@@ -240,8 +240,11 @@ const Updates = (() => {
             '<strong>Kein Update-Watcher aktiv</strong> — auf diesem System (z.&thinsp;B. Windows/Docker Desktop) ' +
             'muss das Update manuell ausgeführt werden:<br>' +
             '<code style="display:inline-block;margin-top:6px;padding:4px 8px;background:rgba(0,0,0,.15);border-radius:4px">' +
-            'git pull &amp;&amp; docker compose build --no-cache backend &amp;&amp; docker compose up -d' +
-            '</code>';
+            'bash update.sh' +
+            '</code>' +
+            '<span style="display:block;margin-top:6px;font-size:0.85em;opacity:0.8">' +
+            'Im Projektverzeichnis ausführen (aktualisiert Code, .env und Container)' +
+            '</span>';
         bar.classList.remove('hidden');
     }
 

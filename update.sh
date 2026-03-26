@@ -198,6 +198,16 @@ if [[ -d "$INSTALL_DIR/.git" ]]; then
 
     NEW_VER=$(get_local_version)
     ok "Code aktualisiert: $LOCAL_VER → $NEW_VER"
+
+    # Update APP_VERSION in .env so the backend reports the correct version
+    if [[ -f "$INSTALL_DIR/.env" ]]; then
+        if grep -q "^APP_VERSION=" "$INSTALL_DIR/.env"; then
+            sed -i "s/^APP_VERSION=.*/APP_VERSION=$NEW_VER/" "$INSTALL_DIR/.env"
+        else
+            echo "APP_VERSION=$NEW_VER" >> "$INSTALL_DIR/.env"
+        fi
+        ok ".env aktualisiert: APP_VERSION=$NEW_VER"
+    fi
 elif [[ -n "$GITHUB_REPO" ]]; then
     err "Kein Git-Repository. Bitte neu installieren:"
     err "  git clone https://github.com/$GITHUB_REPO.git $INSTALL_DIR"
