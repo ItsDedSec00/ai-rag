@@ -66,6 +66,13 @@ services:
       - config_data:/data/config
       - logs_data:/data/logs
       - ./.update-flag:/data/.update-flag
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     depends_on:
       ollama:
         condition: service_started
