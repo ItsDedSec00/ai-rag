@@ -21,6 +21,21 @@ async def lifespan(app: FastAPI):
     import config as cfg
     cfg.load()
 
+    # GPU detection on every start
+    from utils.gpu import get_gpu_info
+    gpu = get_gpu_info()
+    app.state.gpu_info = gpu
+    mode = gpu.get("mode", "cpu")
+    if mode == "nvidia":
+        gpus = gpu.get("gpus", [])
+        names = ", ".join(g.get("name", "?") for g in gpus)
+        total_vram = gpu.get("total_vram_mb", 0)
+        print(f"[RAG-Chat] GPU erkannt: {names} ({total_vram} MB VRAM) — GPU-Modus")
+    elif mode == "amd":
+        print(f"[RAG-Chat] AMD GPU erkannt — {gpu.get('note', 'CPU-Modus')}")
+    else:
+        print("[RAG-Chat] Keine GPU erkannt — CPU-Modus (langsamer)")
+
     from rag.indexer import indexer
     import asyncio
     asyncio.create_task(
@@ -65,7 +80,7 @@ CHROMA_PORT = os.getenv("CHROMA_PORT", "8000")
 
 
 @app.get("/api/health")
-async def health():
+async def health(request: Request):
     status: dict = {"status": "ok", "services": {}}
 
     try:
@@ -89,6 +104,22 @@ async def health():
                 status["services"]["chromadb"] = "error"
     except Exception:
         status["services"]["chromadb"] = "unavailable"
+
+    # GPU status from startup detection
+    gpu = getattr(request.app.state, "gpu_info", None)
+    if gpu:
+        mode = gpu.get("mode", "cpu")
+        gpu_status: dict = {"mode": mode}
+        if mode == "nvidia":
+            gpus = gpu.get("gpus", [])
+            gpu_status["gpu_name"] = ", ".join(g.get("name", "?") for g in gpus)
+            gpu_status["vram_total_mb"] = gpu.get("total_vram_mb", 0)
+            gpu_status["gpu_count"] = gpu.get("gpu_count", 1)
+        elif mode == "amd":
+            gpu_status["note"] = gpu.get("note", "")
+        else:
+            gpu_status["note"] = gpu.get("note", "Keine GPU erkannt. CPU-Modus (langsamer).")
+        status["gpu"] = gpu_status
 
     return status
 

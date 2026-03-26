@@ -336,12 +336,7 @@ mkdir -p "$INSTALL_DIR/nginx"
 htpasswd -bc "$INSTALL_DIR/nginx/htpasswd" "$ADMIN_USER" "$ADMIN_PASSWORD" 2>/dev/null
 ok "htpasswd erstellt ($ADMIN_USER)"
 
-# GPU wird automatisch bei jedem Start erkannt (start.sh + docker-compose.gpu.yml)
-if [[ "$GPU_MODE" == "nvidia" ]]; then
-    ok "GPU-Passthrough wird automatisch bei jedem Start aktiviert"
-else
-    info "GPU-Passthrough wird aktiviert sobald eine NVIDIA GPU erkannt wird"
-fi
+ok "GPU wird automatisch bei jedem Systemstart erkannt"
 
 # ═══════════════════════════════════════════════════════════════════
 # 5. DOCKER BUILD
@@ -360,6 +355,25 @@ ok "Backend gebaut"
 # ═══════════════════════════════════════════════════════════════════
 step "6/7  systemd-Service einrichten"
 
+# GPU-Erkennungsskript (wird bei jedem Start aufgerufen)
+cat > "$INSTALL_DIR/detect-gpu.sh" << 'GPUEOF'
+#!/usr/bin/env bash
+# Erkennt GPU bei jedem Systemstart und schreibt das Ergebnis
+INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GPU_FLAG="$INSTALL_DIR/.gpu-mode"
+
+if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
+    if docker info 2>/dev/null | grep -q "nvidia"; then
+        echo "gpu" > "$GPU_FLAG"
+        echo "[RAG-Chat] NVIDIA GPU erkannt — GPU-Modus aktiviert"
+        exit 0
+    fi
+fi
+echo "cpu" > "$GPU_FLAG"
+echo "[RAG-Chat] Kein GPU-Support — CPU-Modus"
+GPUEOF
+chmod +x "$INSTALL_DIR/detect-gpu.sh"
+
 cat > /etc/systemd/system/rag-chat.service << EOF
 [Unit]
 Description=RAG-Chat — Lokale KI-Dokumentensuche
@@ -371,9 +385,10 @@ Requires=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/start.sh up
-ExecStop=$INSTALL_DIR/start.sh down
-ExecReload=$INSTALL_DIR/start.sh restart
+ExecStartPre=$INSTALL_DIR/detect-gpu.sh
+ExecStart=/bin/bash -c 'cd $INSTALL_DIR && if [ "\$(cat .gpu-mode 2>/dev/null)" = "gpu" ]; then docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d; else docker compose -f docker-compose.yml up -d; fi'
+ExecStop=/bin/bash -c 'cd $INSTALL_DIR && docker compose -f docker-compose.yml down'
+ExecReload=/bin/bash -c 'cd $INSTALL_DIR && $INSTALL_DIR/detect-gpu.sh && if [ "\$(cat .gpu-mode 2>/dev/null)" = "gpu" ]; then docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d; else docker compose -f docker-compose.yml up -d; fi'
 TimeoutStartSec=300
 
 [Install]
@@ -421,7 +436,12 @@ fi
 step "7/7  Starten"
 
 info "Starte alle Services..."
-bash "$INSTALL_DIR/start.sh" up 2>&1 | tail -5
+bash "$INSTALL_DIR/detect-gpu.sh"
+if [[ "$(cat "$INSTALL_DIR/.gpu-mode" 2>/dev/null)" == "gpu" ]]; then
+    docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d 2>&1 | tail -5
+else
+    docker compose up -d 2>&1 | tail -5
+fi
 ok "Container gestartet"
 
 # Warte auf Ollama

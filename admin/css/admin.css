@@ -1766,3 +1766,61 @@ footer {
     align-items: center;
     gap: 8px;
 }
+
+/* ============================================================
+   GPU Banner
+   ============================================================ */
+
+.gpu-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    margin: 0 24px 16px;
+    border-radius: var(--radius);
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+
+.gpu-banner.gpu {
+    background: var(--green-soft);
+    color: var(--green);
+    border: 1px solid rgba(22, 163, 74, 0.2);
+}
+
+.gpu-banner.warn {
+    background: var(--amber-soft);
+    color: var(--amber);
+    border: 1px solid rgba(217, 119, 6, 0.2);
+}
+
+.gpu-banner.cpu {
+    background: var(--amber-soft);
+    color: var(--amber);
+    border: 1px solid rgba(217, 119, 6, 0.2);
+}
+
+.gpu-banner-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.gpu-banner-text {
+    flex: 1;
+}
+
+.gpu-banner-close {
+    background: none;
+    border: none;
+    color: inherit;
+    opacity: 0.5;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.gpu-banner-close:hover {
+    opacity: 1;
+    background: rgba(0,0,0,0.08);
+}

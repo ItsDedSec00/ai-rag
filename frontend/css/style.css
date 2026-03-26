@@ -132,6 +132,34 @@ button {
     border-radius: 4px;
 }
 
+/* GPU info banner */
+.gpu-info-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 16px;
+    background: var(--bg-hover);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.gpu-info-banner button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.gpu-info-banner button:hover {
+    background: var(--border);
+    color: var(--text);
+}
+
 #new-chat-btn {
     width: 100%;
     display: flex;

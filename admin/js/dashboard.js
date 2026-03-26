@@ -165,6 +165,8 @@ const Dashboard = (() => {
     // Poll: /api/health (service dots)
     // =================================================================
 
+    let _gpuBannerShown = false;
+
     async function _pollHealth() {
         try {
             const r = await fetch('/api/health');
@@ -176,10 +178,42 @@ const Dashboard = (() => {
                 d.services?.ollama === 'ok' ? 'Verbunden' : 'Nicht erreichbar';
             document.getElementById('svc-chromadb-text').textContent =
                 d.services?.chromadb === 'ok' ? 'Verbunden' : 'Nicht erreichbar';
+
+            // GPU banner (show once)
+            if (!_gpuBannerShown && d.gpu) {
+                _gpuBannerShown = true;
+                _showGpuBanner(d.gpu);
+            }
         } catch (_) {
             _dot('svc-ollama', false);
             _dot('svc-chromadb', false);
         }
+    }
+
+    function _showGpuBanner(gpu) {
+        const banner = document.getElementById('gpu-banner');
+        if (!banner) return;
+
+        let icon, text, cls;
+        if (gpu.mode === 'nvidia') {
+            icon = '🟢';
+            const vram = gpu.vram_total_mb ? (gpu.vram_total_mb / 1024).toFixed(1) + ' GB VRAM' : '';
+            const count = gpu.gpu_count > 1 ? ` (${gpu.gpu_count}x)` : '';
+            text = `GPU-Modus: ${gpu.gpu_name || 'NVIDIA'}${count}${vram ? ' — ' + vram : ''}`;
+            cls = 'gpu-banner gpu';
+        } else if (gpu.mode === 'amd') {
+            icon = '🟡';
+            text = gpu.note || 'AMD GPU erkannt — CPU-Modus';
+            cls = 'gpu-banner warn';
+        } else {
+            icon = '🟠';
+            text = 'CPU-Modus — Keine GPU erkannt. Antworten können langsamer sein.';
+            cls = 'gpu-banner cpu';
+        }
+
+        banner.className = cls;
+        banner.innerHTML = `<span class="gpu-banner-icon">${icon}</span><span class="gpu-banner-text">${_esc(text)}</span><button class="gpu-banner-close" title="Schließen">✕</button>`;
+        banner.querySelector('.gpu-banner-close').addEventListener('click', () => banner.classList.add('hidden'));
     }
 
     // =================================================================

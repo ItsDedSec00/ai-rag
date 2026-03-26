@@ -562,6 +562,43 @@ const Chat = (() => {
 
 
     // ===================================================================
+    // GPU status banner
+    // ===================================================================
+
+    async function _loadGpuStatus() {
+        try {
+            const r = await fetch('/api/health');
+            if (!r.ok) return;
+            const d = await r.json();
+            if (!d.gpu) return;
+
+            const mode = d.gpu.mode;
+            // Only show banner for CPU/AMD mode (GPU mode = all good, no banner needed)
+            if (mode === 'nvidia') return;
+
+            let text;
+            if (mode === 'amd') {
+                text = d.gpu.note || 'AMD GPU erkannt — CPU-Modus';
+            } else {
+                text = 'CPU-Modus — Antworten können etwas langsamer sein.';
+            }
+
+            const banner = document.createElement('div');
+            banner.className = 'gpu-info-banner';
+            banner.innerHTML = `<span>${_esc(text)}</span><button onclick="this.parentElement.remove()" title="Schließen">✕</button>`;
+            const messages = document.getElementById('messages');
+            if (messages) messages.parentElement.insertBefore(banner, messages);
+        } catch (_) {}
+    }
+
+    function _esc(str) {
+        const d = document.createElement('div');
+        d.textContent = str || '';
+        return d.innerHTML;
+    }
+
+
+    // ===================================================================
     // Init
     // ===================================================================
 
@@ -570,6 +607,7 @@ const Chat = (() => {
         _loadHistory();
         _renderChatList();
         _loadBranding();
+        _loadGpuStatus();
 
         const form = document.getElementById('chat-form');
         const input = document.getElementById('message-input');
