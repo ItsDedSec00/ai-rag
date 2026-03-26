@@ -200,15 +200,49 @@ const Updates = (() => {
             const r = await fetch(url, { method: 'POST' });
             const data = await r.json();
             if (r.ok) {
-                _showStatusBar('ok', successMsg + ' — wird im Hintergrund ausgeführt');
-                // Reload log after short delay
+                _showStatusBar('ok', successMsg + ' — prüfe ob Watcher aktiv…');
                 setTimeout(_loadLog, 3000);
+                // Poll flag: if still set after ~12s, watcher is not running
+                _pollFlag(0);
             } else {
                 _showStatusBar('warn', 'Fehler: ' + (data.detail || 'Unbekannt'));
             }
         } catch (e) {
             _showStatusBar('warn', 'Fehler: ' + e.message);
         }
+    }
+
+    async function _pollFlag(attempt) {
+        if (attempt > 4) {
+            // Flag still set after ~12s → watcher not running, show manual instructions
+            _showManualHint();
+            return;
+        }
+        await new Promise(res => setTimeout(res, 3000));
+        try {
+            const r = await fetch('/api/admin/updates/flag');
+            const data = await r.json();
+            if (!data.pending) {
+                // Flag was consumed — watcher is running
+                _showStatusBar('ok', 'Update wird im Hintergrund ausgeführt…');
+                setTimeout(_loadLog, 5000);
+            } else {
+                _pollFlag(attempt + 1);
+            }
+        } catch (_) {}
+    }
+
+    function _showManualHint() {
+        const bar = document.getElementById('update-status-bar');
+        if (!bar) return;
+        bar.className = 'update-status-bar update-status-warn';
+        bar.innerHTML =
+            '<strong>Kein Update-Watcher aktiv</strong> — auf diesem System (z.&thinsp;B. Windows/Docker Desktop) ' +
+            'muss das Update manuell ausgeführt werden:<br>' +
+            '<code style="display:inline-block;margin-top:6px;padding:4px 8px;background:rgba(0,0,0,.15);border-radius:4px">' +
+            'git pull &amp;&amp; docker compose build --no-cache backend &amp;&amp; docker compose up -d' +
+            '</code>';
+        bar.classList.remove('hidden');
     }
 
     // =================================================================
