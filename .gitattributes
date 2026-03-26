@@ -1,0 +1,6 @@
+# Shell-Skripte immer mit LF (Linux-Zeilenenden) speichern
+*.sh    text eol=lf
+# Dockerfile immer mit LF
+Dockerfile text eol=lf
+# Alle anderen Textdateien: automatisch
+*       text=auto
