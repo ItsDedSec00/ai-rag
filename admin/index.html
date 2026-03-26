@@ -668,6 +668,38 @@
                     </div>
                 </section>
 
+                <!-- Admin Access -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>Admin-Zugang</h2>
+                    </div>
+                    <div class="config-group" style="padding:0">
+                        <h3 class="config-group-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            Passwort ändern
+                        </h3>
+                        <div class="config-row">
+                            <label>Aktuelles Passwort</label>
+                            <input type="password" id="pw-current" class="config-input" autocomplete="current-password" placeholder="••••••••">
+                        </div>
+                        <div class="config-row">
+                            <label>Neues Passwort</label>
+                            <input type="password" id="pw-new" class="config-input" autocomplete="new-password" placeholder="Mindestens 4 Zeichen">
+                        </div>
+                        <div class="config-row">
+                            <label>Bestätigung</label>
+                            <input type="password" id="pw-confirm" class="config-input" autocomplete="new-password" placeholder="Neues Passwort wiederholen">
+                        </div>
+                        <div class="config-row">
+                            <label></label>
+                            <div style="display:flex;align-items:center;gap:12px">
+                                <button id="btn-change-pw" class="btn btn-primary">Passwort ändern</button>
+                                <span id="pw-msg" class="saved-msg hidden"></span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Import / Export -->
                 <section class="panel">
                     <div class="panel-header">

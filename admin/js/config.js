@@ -336,6 +336,52 @@ const Config = (() => {
 
         // Start in simple mode
         _setMode('simple');
+
+        // Password change
+        document.getElementById('btn-change-pw')?.addEventListener('click', _changePassword);
+    }
+
+    async function _changePassword() {
+        const cur = document.getElementById('pw-current')?.value || '';
+        const nw  = document.getElementById('pw-new')?.value || '';
+        const cfm = document.getElementById('pw-confirm')?.value || '';
+        const msg = document.getElementById('pw-msg');
+
+        if (!cur || !nw || !cfm) { _showPwMsg('Alle Felder ausfüllen', true); return; }
+        if (nw !== cfm) { _showPwMsg('Passwörter stimmen nicht überein', true); return; }
+        if (nw.length < 4) { _showPwMsg('Mindestens 4 Zeichen', true); return; }
+
+        const btn = document.getElementById('btn-change-pw');
+        btn.disabled = true;
+        try {
+            const r = await fetch('/api/admin/auth/password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ current_password: cur, new_password: nw }),
+            });
+            if (r.ok) {
+                _showPwMsg('Passwort geändert — bitte neu anmelden', false);
+                document.getElementById('pw-current').value = '';
+                document.getElementById('pw-new').value = '';
+                document.getElementById('pw-confirm').value = '';
+            } else {
+                const d = await r.json().catch(() => ({}));
+                _showPwMsg(d.detail || 'Fehler beim Ändern', true);
+            }
+        } catch (e) {
+            _showPwMsg('Verbindungsfehler', true);
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    function _showPwMsg(text, isError) {
+        const msg = document.getElementById('pw-msg');
+        if (!msg) return;
+        msg.textContent = text;
+        msg.classList.remove('hidden');
+        msg.style.color = isError ? 'var(--color-error, #ef4444)' : 'var(--color-success, #22c55e)';
+        setTimeout(() => msg.classList.add('hidden'), 4000);
     }
 
     document.addEventListener('DOMContentLoaded', init);

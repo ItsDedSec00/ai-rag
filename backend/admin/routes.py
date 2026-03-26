@@ -3,7 +3,7 @@
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import config as cfg
 from utils.gpu import get_gpu_info
@@ -27,8 +27,28 @@ from admin.updates import (
     get_flag_status,
 )
 from admin.performance import get_summary, get_hourly_stats, get_recent_requests
+from admin.auth import change_password
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+# ---------------------------------------------------------------------------
+# Auth / Password management
+# ---------------------------------------------------------------------------
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=4)
+
+@router.post("/auth/password")
+def auth_change_password(req: ChangePasswordRequest):
+    """Change the admin Basic Auth password."""
+    try:
+        return change_password(req.current_password, req.new_password)
+    except PermissionError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ---------------------------------------------------------------------------

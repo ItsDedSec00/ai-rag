@@ -53,12 +53,15 @@ services:
       - TEMPERATURE=${TEMPERATURE:-0.7}
       - APP_VERSION=${APP_VERSION:-dev}
       - GITHUB_REPO=${GITHUB_REPO:-}
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - HTPASSWD_PATH=/data/nginx/htpasswd
     volumes:
       - knowledge_data:/data/knowledge
       - config_data:/data/config
       - logs_data:/data/logs
       - ./.gpu-mode:/data/.gpu-mode:ro
       - ./.update-flag:/data/.update-flag
+      - ./nginx/htpasswd:/data/nginx/htpasswd
     depends_on:
       ollama:
         condition: service_started

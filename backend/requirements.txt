@@ -8,3 +8,4 @@ watchdog==4.0.1
 pypdf>=4.0.0,<6.0.0
 python-docx==1.1.2
 python-multipart==0.0.12
+passlib[bcrypt]==1.7.4
