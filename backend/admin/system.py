@@ -6,9 +6,11 @@ System metrics: CPU, RAM, disk, uptime, request counters.
 """
 
 import os
+import sqlite3
 import time
 import platform
 from datetime import datetime, timezone
+from pathlib import Path
 from threading import Lock
 
 import psutil
@@ -16,13 +18,15 @@ import config as cfg
 
 from utils.gpu import get_gpu_info
 
+_PERF_DB = Path("/data/logs/performance.db")
+
 
 # ---------------------------------------------------------------------------
-# Request counter (thread-safe, in-memory)
+# Request counter (thread-safe, seeded from persistent SQLite on startup)
 # ---------------------------------------------------------------------------
 
 class RequestCounter:
-    """Simple in-memory counter with per-hour and per-day tracking."""
+    """In-memory counter seeded from performance.db so counts survive restarts."""
 
     def __init__(self):
         self._lock = Lock()
@@ -30,6 +34,25 @@ class RequestCounter:
         self._hourly: dict[str, int] = {}   # "YYYY-MM-DD-HH" → count
         self._daily: dict[str, int] = {}    # "YYYY-MM-DD" → count
         self._started_at = datetime.now(timezone.utc).isoformat()
+        self._load_from_db()
+
+    def _load_from_db(self) -> None:
+        """Seed counters from persisted performance.db (best-effort)."""
+        try:
+            if not _PERF_DB.exists():
+                return
+            with sqlite3.connect(str(_PERF_DB)) as c:
+                self._total = c.execute("SELECT COUNT(*) FROM requests").fetchone()[0] or 0
+                rows = c.execute(
+                    """SELECT strftime('%Y-%m-%d-%H', timestamp) AS h, COUNT(*) AS n
+                       FROM requests GROUP BY h"""
+                ).fetchall()
+                for h, n in rows:
+                    self._hourly[h] = n
+                    day = h[:10]  # "YYYY-MM-DD"
+                    self._daily[day] = self._daily.get(day, 0) + n
+        except Exception:
+            pass  # non-fatal — start from 0 if DB not readable
 
     def increment(self):
         now = datetime.now(timezone.utc)

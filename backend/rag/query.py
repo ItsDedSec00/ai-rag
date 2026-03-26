@@ -20,6 +20,8 @@ import asyncio
 import json
 import logging
 import os
+import re
+import time
 from typing import Any, AsyncGenerator
 
 import httpx
@@ -74,18 +76,25 @@ def _build_prompt(
         system_prompt += f"\n\nAntworte immer auf {lang}."
 
     if not context_chunks:
-        context_block = "(Kein relevanter Kontext verfügbar.)"
-    else:
-        parts = []
-        for i, chunk in enumerate(context_chunks, 1):
-            source = chunk.get("source", "Unbekannt")
-            text = chunk.get("text", "")
-            parts.append(f"[Quelle {i}: {source}]\n{text}")
-        context_block = "\n\n---\n\n".join(parts)
+        # No context — pure conversation, no RAG block needed
+        return f"{system_prompt}\n\n{query}"
+
+    parts = []
+    for i, chunk in enumerate(context_chunks, 1):
+        source = chunk.get("source", "Unbekannt")
+        text = chunk.get("text", "")
+        parts.append(f"[Quelle {i}: {source}]\n{text}")
+    context_block = "\n\n---\n\n".join(parts)
+    citation_hint = (
+        "\n\nNutze die folgenden Dokumente NUR, wenn sie zur Frage passen. "
+        "Wenn sie irrelevant sind, ignoriere sie und antworte frei. "
+        "Wenn du Informationen aus den Dokumenten verwendest, "
+        "kennzeichne die genutzte Quelle als [1], [2] usw."
+    )
 
     return (
-        f"{system_prompt}\n\n"
-        f"=== KONTEXT ===\n{context_block}\n\n"
+        f"{system_prompt}{citation_hint}\n\n"
+        f"=== DOKUMENTE (optional) ===\n{context_block}\n\n"
         f"=== FRAGE ===\n{query}"
     )
 
@@ -194,6 +203,9 @@ async def _stream_ollama(
     in_thinking = False
     thinking_detected = False
     token_buffer = ""
+    full_response = ""  # accumulate to detect cited sources
+    _start = time.monotonic()
+    _first_token_ms: float | None = None
 
     try:
         async with httpx.AsyncClient(timeout=None) as client:
@@ -205,6 +217,7 @@ async def _stream_ollama(
                     "prompt": prompt,
                     "stream": True,
                     "think": cfg.ollama_thinking_mode(),
+                    "keep_alive": cfg.ollama_keep_alive(),
                     "options": {
                         "temperature": temperature,
                         "top_p": cfg.ollama_top_p(),
@@ -231,6 +244,8 @@ async def _stream_ollama(
 
                     token = chunk.get("response", "")
                     if token:
+                        if _first_token_ms is None:
+                            _first_token_ms = (time.monotonic() - _start) * 1000
                         # Buffer tokens to detect <think> / </think> tags
                         token_buffer += token
 
@@ -274,17 +289,21 @@ async def _stream_ollama(
                         # Normal token (no thinking)
                         # Flush buffer if it's long enough that <think> won't appear
                         if len(token_buffer) > 10 or thinking_detected:
+                            full_response += token_buffer
                             yield _sse("token", {"content": token_buffer})
                             token_buffer = ""
                         elif len(token_buffer) > 10:
                             flush = token_buffer[:-7]
                             token_buffer = token_buffer[-7:]
+                            full_response += flush
                             yield _sse("token", {"content": flush})
 
                     if chunk.get("done", False):
                         # Flush remaining buffer
                         if token_buffer:
                             evt = "thinking" if in_thinking else "token"
+                            if not in_thinking:
+                                full_response += token_buffer
                             yield _sse(evt, {"content": token_buffer})
                             token_buffer = ""
                         if in_thinking:
@@ -292,14 +311,37 @@ async def _stream_ollama(
 
                         # Include generation stats
                         stats = {}
+                        _tps: float | None = None
+                        _dur_ms: float | None = None
                         if "total_duration" in chunk:
-                            stats["total_duration_ms"] = chunk["total_duration"] // 1_000_000
+                            _dur_ms = chunk["total_duration"] / 1_000_000
+                            stats["total_duration_ms"] = int(_dur_ms)
                         if "eval_count" in chunk and "eval_duration" in chunk:
                             eval_dur_s = chunk["eval_duration"] / 1e9
                             if eval_dur_s > 0:
-                                stats["tokens_per_second"] = round(
-                                    chunk["eval_count"] / eval_dur_s, 1
-                                )
+                                _tps = round(chunk["eval_count"] / eval_dur_s, 1)
+                                stats["tokens_per_second"] = _tps
+
+                        # Persist metrics
+                        try:
+                            from admin.performance import log_request
+                            log_request(
+                                model=model,
+                                first_token_ms=round(_first_token_ms, 1) if _first_token_ms else None,
+                                total_tokens=chunk.get("eval_count"),
+                                tokens_per_second=_tps,
+                                duration_ms=round(_dur_ms, 1) if _dur_ms else None,
+                                source_count=len(sources),
+                            )
+                        except Exception:
+                            pass
+
+                        # Filter to only cited sources ([1], [2], ...)
+                        if sources:
+                            cited = set(int(m) for m in re.findall(r'\[(\d+)\]', full_response))
+                            if cited:
+                                sources = [s for i, s in enumerate(sources, 1) if i in cited]
+
                         yield _sse("sources", {"sources": sources, "stats": stats})
                         yield _sse("done", {})
                         return

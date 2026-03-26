@@ -26,6 +26,7 @@ from admin.updates import (
     get_update_status, get_update_log, request_update, request_rollback,
     get_flag_status,
 )
+from admin.performance import get_summary, get_hourly_stats, get_recent_requests
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -161,6 +162,13 @@ class GenerationParamsRequest(BaseModel):
     repeat_penalty: float | None = None
     response_language: str | None = None
     thinking_mode: bool | None = None
+    keep_alive: str | None = None
+
+@router.get("/models/default-prompt")
+def models_default_prompt():
+    """Return the built-in default system prompt."""
+    return {"system_prompt": cfg.DEFAULT_SYSTEM_PROMPT}
+
 
 @router.post("/models/params")
 def models_update_params(req: GenerationParamsRequest):
@@ -174,6 +182,7 @@ def models_update_params(req: GenerationParamsRequest):
         repeat_penalty=req.repeat_penalty,
         response_language=req.response_language,
         thinking_mode=req.thinking_mode,
+        keep_alive=req.keep_alive,
     )
 
 
@@ -505,3 +514,25 @@ def updates_rollback():
     if result["status"] != "ok":
         raise HTTPException(status_code=500, detail=result.get("detail"))
     return result
+
+
+# ---------------------------------------------------------------------------
+# Performance Monitor (ADM-05)
+# ---------------------------------------------------------------------------
+
+@router.get("/performance/summary")
+def performance_summary():
+    """Today's KPIs: request counts, avg latency, avg token/s."""
+    return get_summary()
+
+
+@router.get("/performance/history")
+def performance_history(hours: int = 24):
+    """Hourly request counts and avg token/s for the last N hours."""
+    return {"history": get_hourly_stats(hours)}
+
+
+@router.get("/performance/recent")
+def performance_recent(n: int = 20):
+    """Last N completed requests."""
+    return {"requests": get_recent_requests(n)}

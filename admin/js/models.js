@@ -39,7 +39,7 @@ const Models = (() => {
                 const page = document.getElementById(tab);
                 if (page) page.classList.remove('hidden');
 
-                const titles = { dashboard: 'Dashboard', models: 'Modelle', files: 'Dateien', config: 'Einstellungen', updates: 'Updates' };
+                const titles = { dashboard: 'Dashboard', models: 'Modelle', files: 'Dateien', config: 'Einstellungen', performance: 'Performance', updates: 'Updates', extensions: 'Erweiterungen' };
                 const h1 = document.querySelector('.header-title h1');
                 if (h1) h1.textContent = titles[tab] || tab;
 
@@ -134,6 +134,8 @@ const Models = (() => {
             if (mt && data.max_tokens) { mt.value = data.max_tokens; document.getElementById('param-maxtokens-val').textContent = data.max_tokens; }
             if (rp && data.repeat_penalty) { rp.value = data.repeat_penalty; document.getElementById('param-repeat-val').textContent = data.repeat_penalty; }
             if (lang && data.response_language) lang.value = data.response_language;
+            const ka = document.getElementById('param-keepalive');
+            if (ka && data.keep_alive != null) ka.value = data.keep_alive;
 
             // Thinking mode toggle
             const toggle = document.getElementById('thinking-toggle');
@@ -469,6 +471,7 @@ const Models = (() => {
             max_tokens: parseInt(document.getElementById('param-maxtokens')?.value || '2048'),
             repeat_penalty: parseFloat(document.getElementById('param-repeat')?.value || '1.1'),
             response_language: document.getElementById('param-lang')?.value || 'auto',
+            keep_alive: document.getElementById('param-keepalive')?.value || '5m',
         };
 
         try {
@@ -610,10 +613,24 @@ const Models = (() => {
 
         // Select + textarea auto-save
         document.getElementById('param-lang')?.addEventListener('change', _debounceSave);
+        document.getElementById('param-keepalive')?.addEventListener('change', _debounceSave);
         document.getElementById('param-prompt')?.addEventListener('input', _debounceSave);
 
         // Thinking mode toggle
         document.getElementById('thinking-toggle')?.addEventListener('change', _toggleThinking);
+
+        // Reset system prompt to default
+        document.getElementById('btn-reset-prompt')?.addEventListener('click', async () => {
+            try {
+                const r = await fetch('/api/admin/models/default-prompt');
+                const data = await r.json();
+                const ta = document.getElementById('param-prompt');
+                if (ta && data.system_prompt) {
+                    ta.value = data.system_prompt;
+                    _saveParams();
+                }
+            } catch (_) {}
+        });
 
         // Custom model input
         document.getElementById('btn-add-custom')?.addEventListener('click', addCustom);

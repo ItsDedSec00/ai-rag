@@ -24,6 +24,22 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/data/config")
+
+DEFAULT_SYSTEM_PROMPT = (
+    "Du bist ein hilfreicher KI-Assistent. "
+    "Du kannst allgemeine Fragen frei beantworten und hast zusätzlich "
+    "Zugriff auf eine Wissensdatenbank mit Dokumenten.\n\n"
+    "Halte dich an folgende Regeln:\n"
+    "- Wenn im Kontext relevante Dokumente bereitgestellt werden UND die Frage "
+    "sich auf diese Dokumente bezieht, nutze sie für deine Antwort.\n"
+    "- Wenn der Kontext nicht zur Frage passt, ignoriere ihn und antworte "
+    "frei aus deinem eigenen Wissen.\n"
+    "- Bei allgemeinen Fragen, Smalltalk oder Begrüßungen antworte natürlich "
+    "und freundlich — ohne die Dokumente zu erwähnen.\n"
+    "- Antworte in der Sprache, in der du gefragt wirst.\n"
+    "- Formuliere Antworten klar und verständlich – auch für Personen ohne Fachkenntnisse.\n"
+    "- Erfinde keine Fakten. Wenn du etwas nicht weißt, sage es ehrlich."
+)
 CONFIG_FILE = os.path.join(CONFIG_PATH, "rag-config.json")
 SNAPSHOT_DIR = os.path.join(CONFIG_PATH, "snapshots")
 
@@ -41,12 +57,8 @@ _DEFAULTS: dict[str, Any] = {
         "repeat_penalty": 1.1,
         "response_language": "auto",
         "thinking_mode": False,
-        "system_prompt": (
-            "Du bist ein hilfreicher Assistent. Beantworte die Frage des Nutzers "
-            "basierend auf dem folgenden Kontext. Wenn der Kontext keine Antwort "
-            "enthält, sage ehrlich, dass du es nicht weißt. "
-            "Antworte auf Deutsch, es sei denn der Nutzer fragt in einer anderen Sprache."
-        ),
+        "keep_alive": "5m",
+        "system_prompt": DEFAULT_SYSTEM_PROMPT,
     },
     "rag": {
         "embedding_model": "nomic-embed-text",
@@ -113,24 +125,21 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 
 def load() -> dict[str, Any]:
-    """Load config: defaults ← env vars ← saved file.  Idempotent."""
+    """Load config: saved file (if exists), else defaults + env vars.
+
+    Priority on first install:  defaults ← env vars → saved to file.
+    Priority on restart:        defaults ← saved file (env vars ignored).
+
+    This ensures the saved config is always the single source of truth
+    after initial setup.  Env vars only seed the very first config file.
+    """
     global _cfg, _loaded
 
-    # 1. Start with defaults
     import copy
     _cfg = copy.deepcopy(_DEFAULTS)
 
-    # 2. Override with environment variables (docker-compose)
-    for env_key, (section, key, typ) in _ENV_MAP.items():
-        val = os.environ.get(env_key)
-        if val is not None:
-            try:
-                _cfg.setdefault(section, {})[key] = typ(val)
-            except (ValueError, TypeError):
-                pass
-
-    # 3. Override with saved config file (highest priority)
     if os.path.exists(CONFIG_FILE):
+        # ── Existing install: saved file is the sole authority ──
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 saved = json.load(f)
@@ -139,8 +148,15 @@ def load() -> dict[str, Any]:
         except Exception as e:
             logger.warning("Could not load config file: %s", e)
     else:
-        logger.info("No config file found — using defaults + env vars")
-        # Write initial config so it exists for next time
+        # ── First install: seed from env vars, then persist ──
+        for env_key, (section, key, typ) in _ENV_MAP.items():
+            val = os.environ.get(env_key)
+            if val is not None:
+                try:
+                    _cfg.setdefault(section, {})[key] = typ(val)
+                except (ValueError, TypeError):
+                    pass
+        logger.info("No config file found — creating from defaults + env vars")
         save()
 
     _loaded = True
@@ -223,6 +239,10 @@ def ollama_response_language() -> str:
 def ollama_thinking_mode() -> bool:
     if not _loaded: load()
     return _cfg.get("ollama", {}).get("thinking_mode", False)
+
+def ollama_keep_alive() -> str:
+    if not _loaded: load()
+    return str(_cfg.get("ollama", {}).get("keep_alive", "5m"))
 
 def rag_min_score() -> float:
     if not _loaded: load()

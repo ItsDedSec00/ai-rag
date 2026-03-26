@@ -74,6 +74,9 @@ async def lifespan(app: FastAPI):
     app.state.gpu_info = gpu
     app.state.gpu_banner = banner
 
+    from admin.performance import init_db
+    init_db()
+
     from rag.indexer import indexer
     import asyncio
     asyncio.create_task(

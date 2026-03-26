@@ -42,7 +42,15 @@ const Dashboard = (() => {
     // =================================================================
 
     function _toggleSidebar() {
-        document.getElementById('admin-sidebar')?.classList.toggle('open');
+        const sidebar = document.getElementById('admin-sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        const isOpen = sidebar?.classList.toggle('open');
+        overlay?.classList.toggle('active', isOpen);
+    }
+
+    function _closeSidebar() {
+        document.getElementById('admin-sidebar')?.classList.remove('open');
+        document.getElementById('sidebar-overlay')?.classList.remove('active');
     }
 
     // =================================================================
@@ -329,6 +337,7 @@ const Dashboard = (() => {
 
         document.getElementById('theme-toggle')?.addEventListener('click', _toggleTheme);
         document.getElementById('sidebar-toggle')?.addEventListener('click', _toggleSidebar);
+        document.getElementById('sidebar-overlay')?.addEventListener('click', _closeSidebar);
         document.getElementById('btn-reindex')?.addEventListener('click', _reindex);
 
         _poll();

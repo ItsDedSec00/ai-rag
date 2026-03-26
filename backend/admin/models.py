@@ -325,6 +325,7 @@ def get_active_model() -> dict:
         "repeat_penalty": cfg.ollama_repeat_penalty(),
         "response_language": cfg.ollama_response_language(),
         "thinking_mode": cfg.ollama_thinking_mode(),
+        "keep_alive": cfg.ollama_keep_alive(),
     }
 
 
@@ -343,6 +344,7 @@ def update_generation_params(
     repeat_penalty: float | None = None,
     response_language: str | None = None,
     thinking_mode: bool | None = None,
+    keep_alive: str | None = None,
 ) -> dict:
     """Update generation parameters in config."""
     updates = {}
@@ -362,6 +364,8 @@ def update_generation_params(
         updates["response_language"] = response_language
     if thinking_mode is not None:
         updates["thinking_mode"] = bool(thinking_mode)
+    if keep_alive is not None:
+        updates["keep_alive"] = keep_alive.strip()
 
     if updates:
         cfg.update_section("ollama", updates)

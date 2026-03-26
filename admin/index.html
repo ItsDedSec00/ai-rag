@@ -32,10 +32,18 @@
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     Einstellungen
                 </a>
+                <a href="#" class="nav-item" data-tab="performance">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    Performance
+                </a>
                 <a href="#" class="nav-item" data-tab="updates">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                     Updates
                     <span id="update-nav-badge" class="nav-badge hidden"></span>
+                </a>
+                <a href="#" class="nav-item" data-tab="extensions">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+                    Erweiterungen
                 </a>
             </nav>
             <div class="sidebar-footer">
@@ -45,6 +53,9 @@
                 </a>
             </div>
         </aside>
+
+        <!-- Mobile sidebar overlay -->
+        <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
         <!-- Main content -->
         <div id="admin-main">
@@ -304,6 +315,11 @@
                             <input type="range" id="param-repeat" min="1.0" max="2.0" step="0.05" value="1.1">
                             <div class="param-hint">Verhindert Wiederholungen · Höher = weniger Wiederholungen</div>
                         </div>
+                        <div class="param">
+                            <label for="param-keepalive">Modell im Speicher halten</label>
+                            <input type="text" id="param-keepalive" class="param-text-input" placeholder="5m" value="5m">
+                            <div class="param-hint">z.&thinsp;B. <code>5m</code>, <code>1h</code>, <code>0</code> (sofort entladen), <code>-1</code> (nie entladen)</div>
+                        </div>
                     </div>
                     <div class="param system-prompt-param">
                         <label for="param-lang">Antwortsprache</label>
@@ -317,8 +333,11 @@
                         <div class="param-hint">Erzwingt eine bestimmte Antwortsprache</div>
                     </div>
                     <div class="param system-prompt-param">
-                        <label for="param-prompt">System-Prompt</label>
-                        <textarea id="param-prompt" rows="3" placeholder="Optionale Anweisung für die KI, z. B. 'Antworte immer auf Deutsch und in einfacher Sprache.'"></textarea>
+                        <div class="param-label-row">
+                            <label for="param-prompt">System-Prompt</label>
+                            <button id="btn-reset-prompt" class="btn-reset-prompt" type="button" title="Auf Standard zurücksetzen">&#8635; Standard</button>
+                        </div>
+                        <textarea id="param-prompt" rows="5" placeholder="Anweisung für die KI…"></textarea>
                         <div class="param-hint">Dieser Text wird der KI als Grundanweisung mitgegeben</div>
                     </div>
                     <div class="params-actions">
@@ -691,6 +710,110 @@
             </div>
 
             <!-- ============================================================
+                 Performance Monitor (ADM-05)
+                 ============================================================ -->
+            <div id="performance" class="page-content hidden">
+
+                <!-- ── Primary KPIs ───────────────────────────────────────── -->
+                <section class="perf-kpi-strip">
+                    <div class="perf-kpi">
+                        <div class="perf-kpi-value" id="perf-today">—</div>
+                        <div class="perf-kpi-label">Anfragen heute</div>
+                    </div>
+                    <div class="perf-kpi">
+                        <div class="perf-kpi-value" id="perf-first-token">—</div>
+                        <div class="perf-kpi-label">Ø Erste Antwort</div>
+                        <div class="perf-kpi-sub">ms bis zum ersten Wort</div>
+                    </div>
+                    <div class="perf-kpi">
+                        <div class="perf-kpi-value" id="perf-tps">—</div>
+                        <div class="perf-kpi-label">Ø Token / Sekunde</div>
+                        <div class="perf-kpi-sub">Antwortgeschwindigkeit</div>
+                    </div>
+                    <div class="perf-kpi">
+                        <div class="perf-kpi-value" id="perf-last-hour">—</div>
+                        <div class="perf-kpi-label">Letzte Stunde</div>
+                        <div class="perf-kpi-sub">Anfragen</div>
+                    </div>
+                </section>
+
+                <!-- ── Advanced ───────────────────────────────────────────── -->
+                <div class="perf-advanced-label">Technische Details</div>
+
+                <!-- Charts row -->
+                <div class="perf-charts-row">
+                    <section class="panel perf-chart-panel">
+                        <div class="panel-header">
+                            <h2>Anfragen letzte 24 h</h2>
+                        </div>
+                        <div class="perf-chart-wrap">
+                            <canvas id="chart-requests"></canvas>
+                        </div>
+                    </section>
+                    <section class="panel perf-chart-panel">
+                        <div class="panel-header">
+                            <h2>Token / s Verlauf</h2>
+                        </div>
+                        <div class="perf-chart-wrap">
+                            <canvas id="chart-tps"></canvas>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- GPU live stats -->
+                <section class="panel" id="perf-gpu-panel">
+                    <div class="panel-header">
+                        <h2>GPU Live</h2>
+                        <span class="muted" style="font-size:0.8rem">alle 10 s</span>
+                    </div>
+                    <div class="perf-gpu-row">
+                        <div class="perf-gpu-stat">
+                            <div class="perf-gpu-val" id="perf-gpu-temp">—</div>
+                            <div class="perf-gpu-label">Temperatur</div>
+                        </div>
+                        <div class="perf-gpu-stat">
+                            <div class="perf-gpu-val" id="perf-gpu-util">—</div>
+                            <div class="perf-gpu-label">Auslastung</div>
+                        </div>
+                        <div class="perf-gpu-stat">
+                            <div class="perf-gpu-val" id="perf-gpu-vram">—</div>
+                            <div class="perf-gpu-label">VRAM genutzt</div>
+                        </div>
+                        <div class="perf-gpu-stat">
+                            <div class="perf-gpu-val" id="perf-gpu-name">—</div>
+                            <div class="perf-gpu-label">GPU</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Recent requests table -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>Letzte Anfragen</h2>
+                        <button class="btn-sm" id="btn-perf-refresh">Aktualisieren</button>
+                    </div>
+                    <div class="perf-table-wrap">
+                        <table class="perf-table" id="perf-recent-table">
+                            <thead>
+                                <tr>
+                                    <th>Zeit</th>
+                                    <th>Modell</th>
+                                    <th>Erste Antwort</th>
+                                    <th>Token / s</th>
+                                    <th>Gesamt</th>
+                                    <th>Quellen</th>
+                                </tr>
+                            </thead>
+                            <tbody id="perf-recent-tbody">
+                                <tr><td colspan="6" class="muted" style="padding:16px;text-align:center">Noch keine Anfragen aufgezeichnet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+            </div>
+
+            <!-- ============================================================
                  Updates page (ADM-04)
                  ============================================================ -->
             <div id="updates" class="page-content hidden">
@@ -778,16 +901,144 @@
 
             </div>
 
+            <!-- ═══════════════════════════════════ EXTENSIONS ══ -->
+            <div id="extensions" class="page-content hidden">
+
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>Erweiterungen</h2>
+                        <p class="panel-desc">Aktiviere und konfiguriere optionale Funktionen für RAG-Chat.</p>
+                    </div>
+                    <div class="ext-toolbar">
+                        <input type="text" id="ext-search" class="ext-search" placeholder="Erweiterung suchen…">
+                        <div class="ext-filter-tabs">
+                            <button class="ext-filter active" data-filter="all">Alle</button>
+                            <button class="ext-filter" data-filter="active">Aktiv</button>
+                            <button class="ext-filter" data-filter="available">Verfügbar</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Coming soon -->
+                <div class="ext-section-label">DEMNÄCHST</div>
+                <div class="ext-grid ext-grid-soon">
+
+                    <div class="ext-card ext-soon" data-state="soon">
+                        <div class="ext-card-main">
+                            <div class="ext-icon" style="background:#f1f5f9;color:#94a3b8">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            </div>
+                            <div class="ext-info">
+                                <div class="ext-name-row">
+                                    <span class="ext-name">Websuche</span>
+                                    <span class="ext-badge ext-badge-soon">Bald</span>
+                                </div>
+                                <div class="ext-desc">Ermöglicht der KI, aktuelle Informationen aus dem Web abzurufen und in Antworten einzubinden.</div>
+                                <span class="ext-tag">Informationsquellen</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ext-card ext-soon" data-state="soon">
+                        <div class="ext-card-main">
+                            <div class="ext-icon" style="background:#f1f5f9;color:#94a3b8">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            </div>
+                            <div class="ext-info">
+                                <div class="ext-name-row">
+                                    <span class="ext-name">Webhook</span>
+                                    <span class="ext-badge ext-badge-soon">Bald</span>
+                                </div>
+                                <div class="ext-desc">Sendet HTTP-Requests bei Chat-Ereignissen an eine externe URL — z.&thinsp;B. für Slack, Teams oder eigene Systeme.</div>
+                                <span class="ext-tag">Integrationen</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ext-card ext-soon" data-state="soon">
+                        <div class="ext-card-main">
+                            <div class="ext-icon" style="background:#f1f5f9;color:#94a3b8">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                            </div>
+                            <div class="ext-info">
+                                <div class="ext-name-row">
+                                    <span class="ext-name">Echtzeit-Monitoring</span>
+                                    <span class="ext-badge ext-badge-soon">Bald</span>
+                                </div>
+                                <div class="ext-desc">Externe Metriken an Prometheus oder Grafana weitergeben — Latenz, Token/s, Fehlerrate.</div>
+                                <span class="ext-tag">Monitoring</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ext-card ext-soon" data-state="soon">
+                        <div class="ext-card-main">
+                            <div class="ext-icon" style="background:#f1f5f9;color:#94a3b8">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                            </div>
+                            <div class="ext-info">
+                                <div class="ext-name-row">
+                                    <span class="ext-name">REST API</span>
+                                    <span class="ext-badge ext-badge-soon">Bald</span>
+                                </div>
+                                <div class="ext-desc">Externe Anwendungen per API-Token anbinden — Chat-Anfragen programmatisch stellen.</div>
+                                <span class="ext-tag">Entwickler</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ext-card ext-soon" data-state="soon">
+                        <div class="ext-card-main">
+                            <div class="ext-icon" style="background:#f1f5f9;color:#94a3b8">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                            </div>
+                            <div class="ext-info">
+                                <div class="ext-name-row">
+                                    <span class="ext-name">Lernzentrum</span>
+                                    <span class="ext-badge ext-badge-soon">Bald</span>
+                                </div>
+                                <div class="ext-desc">Lernkarten und Quiz aus den Wissensdokumenten — KI-generierte Fragen zum interaktiven Lernen.</div>
+                                <span class="ext-tag">Bildung</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- Config Drawer (shared) -->
+            <div id="ext-overlay" class="ext-overlay hidden"></div>
+            <div id="ext-drawer" class="ext-drawer hidden">
+                <div class="ext-drawer-header">
+                    <div class="ext-drawer-title">
+                        <span id="ext-drawer-icon" class="ext-drawer-icon"></span>
+                        <span id="ext-drawer-name"></span>
+                    </div>
+                    <button id="ext-drawer-close" class="ext-drawer-close">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+                <div id="ext-drawer-body" class="ext-drawer-body"></div>
+                <div class="ext-drawer-footer">
+                    <button id="ext-drawer-save" class="btn btn-primary">Speichern</button>
+                    <button id="ext-drawer-cancel" class="btn btn-secondary">Abbrechen</button>
+                </div>
+            </div>
+
             <footer>
                 &copy; 2026 <a href="https://duelle.org" target="_blank" rel="noopener">David Dülle</a> · RAG-Chat
             </footer>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="/admin/js/dashboard.js"></script>
     <script src="/admin/js/models.js?v=2"></script>
     <script src="/admin/js/files.js"></script>
     <script src="/admin/js/config.js"></script>
     <script src="/admin/js/updates.js?v=1"></script>
+    <script src="/admin/js/performance.js"></script>
+    <script src="/admin/js/extensions.js"></script>
 </body>
 </html>

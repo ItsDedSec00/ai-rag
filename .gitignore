@@ -32,3 +32,8 @@ docker-compose.override.yml
 
 # Logs
 *.log
+
+# Local-only: AI instructions & internal docs
+CLAUDE.md
+/docs/
+/.claude/
