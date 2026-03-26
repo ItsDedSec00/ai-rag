@@ -358,19 +358,43 @@ step "6/7  systemd-Service einrichten"
 # GPU-Erkennungsskript (wird bei jedem Start aufgerufen)
 cat > "$INSTALL_DIR/detect-gpu.sh" << 'GPUEOF'
 #!/usr/bin/env bash
-# Erkennt GPU bei jedem Systemstart und schreibt das Ergebnis
+# Erkennt GPU bei jedem Systemstart und schreibt detaillierten Status.
+# Mögliche Werte in .gpu-mode:
+#   nvidia          — GPU + Toolkit OK, Docker kann GPU nutzen
+#   nvidia-no-toolkit — GPU vorhanden, aber nvidia-container-toolkit fehlt
+#   amd             — AMD GPU erkannt (kein ROCm-Support in Ollama)
+#   cpu             — Keine GPU erkannt
 INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GPU_FLAG="$INSTALL_DIR/.gpu-mode"
 
+# NVIDIA prüfen
 if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
+    GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)
     if docker info 2>/dev/null | grep -q "nvidia"; then
-        echo "gpu" > "$GPU_FLAG"
-        echo "[RAG-Chat] NVIDIA GPU erkannt — GPU-Modus aktiviert"
+        echo "nvidia" > "$GPU_FLAG"
+        echo "[RAG-Chat] NVIDIA GPU erkannt ($GPU_NAME) — GPU-Modus aktiviert"
+        exit 0
+    else
+        echo "nvidia-no-toolkit" > "$GPU_FLAG"
+        echo "[RAG-Chat] NVIDIA GPU vorhanden ($GPU_NAME), aber Docker-GPU-Passthrough fehlt"
         exit 0
     fi
 fi
+
+# AMD prüfen (sysfs)
+if [[ -d /sys/class/drm ]]; then
+    for vendor_file in /sys/class/drm/card*/device/vendor; do
+        [[ -f "$vendor_file" ]] || continue
+        if [[ "$(cat "$vendor_file" 2>/dev/null)" == "0x1002" ]]; then
+            echo "amd" > "$GPU_FLAG"
+            echo "[RAG-Chat] AMD GPU erkannt — Ollama nutzt CPU (kein ROCm)"
+            exit 0
+        fi
+    done
+fi
+
 echo "cpu" > "$GPU_FLAG"
-echo "[RAG-Chat] Kein GPU-Support — CPU-Modus"
+echo "[RAG-Chat] Keine GPU erkannt — CPU-Modus"
 GPUEOF
 chmod +x "$INSTALL_DIR/detect-gpu.sh"
 

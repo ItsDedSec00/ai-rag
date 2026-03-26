@@ -570,21 +570,16 @@ const Chat = (() => {
             const r = await fetch('/api/health');
             if (!r.ok) return;
             const d = await r.json();
-            if (!d.gpu) return;
+            // Only show banner if backend reports a GPU problem
+            if (!d.gpu_banner) return;
 
-            const mode = d.gpu.mode;
-            // Only show banner for CPU/AMD mode (GPU mode = all good, no banner needed)
-            if (mode === 'nvidia') return;
-
-            let text;
-            if (mode === 'amd') {
-                text = d.gpu.note || 'AMD GPU erkannt — CPU-Modus';
-            } else {
-                text = 'CPU-Modus — Antworten können etwas langsamer sein.';
-            }
+            const b = d.gpu_banner;
+            const text = b.type === 'warning'
+                ? '⚠️ ' + b.message + (b.action ? ' ' + b.action : '')
+                : b.message;
 
             const banner = document.createElement('div');
-            banner.className = 'gpu-info-banner';
+            banner.className = 'gpu-info-banner' + (b.type === 'warning' ? ' gpu-warning' : '');
             banner.innerHTML = `<span>${_esc(text)}</span><button onclick="this.parentElement.remove()" title="Schließen">✕</button>`;
             const messages = document.getElementById('messages');
             if (messages) messages.parentElement.insertBefore(banner, messages);

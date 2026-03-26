@@ -24,17 +24,55 @@ async def lifespan(app: FastAPI):
     # GPU detection on every start
     from utils.gpu import get_gpu_info
     gpu = get_gpu_info()
-    app.state.gpu_info = gpu
-    mode = gpu.get("mode", "cpu")
-    if mode == "nvidia":
+    container_mode = gpu.get("mode", "cpu")
+
+    # Read host-level GPU detection (written by detect-gpu.sh before Docker start)
+    host_gpu_mode = "cpu"
+    try:
+        with open("/data/.gpu-mode", "r") as f:
+            host_gpu_mode = f.read().strip()
+    except FileNotFoundError:
+        pass
+
+    # Determine banner status
+    # banner=None means everything is fine → no banner shown
+    banner = None
+    if host_gpu_mode == "nvidia" and container_mode == "nvidia":
+        # GPU works perfectly → no banner
         gpus = gpu.get("gpus", [])
         names = ", ".join(g.get("name", "?") for g in gpus)
         total_vram = gpu.get("total_vram_mb", 0)
-        print(f"[RAG-Chat] GPU erkannt: {names} ({total_vram} MB VRAM) — GPU-Modus")
-    elif mode == "amd":
-        print(f"[RAG-Chat] AMD GPU erkannt — {gpu.get('note', 'CPU-Modus')}")
+        print(f"[RAG-Chat] GPU aktiv: {names} ({total_vram} MB VRAM)")
+    elif host_gpu_mode == "nvidia-no-toolkit":
+        banner = {
+            "type": "warning",
+            "message": "NVIDIA GPU erkannt, aber nvidia-container-toolkit fehlt. GPU-Beschleunigung nicht aktiv.",
+            "action": "Bitte nvidia-container-toolkit installieren und den Dienst neu starten.",
+        }
+        print(f"[RAG-Chat] WARNUNG: {banner['message']}")
+    elif host_gpu_mode == "nvidia" and container_mode != "nvidia":
+        banner = {
+            "type": "warning",
+            "message": "NVIDIA GPU erkannt, aber Ollama läuft im CPU-Modus.",
+            "action": "Bitte den Dienst neu starten: systemctl restart rag-chat",
+        }
+        print(f"[RAG-Chat] WARNUNG: {banner['message']}")
+    elif host_gpu_mode == "amd":
+        banner = {
+            "type": "info",
+            "message": "AMD GPU erkannt — Ollama unterstützt nur NVIDIA GPUs. CPU-Modus aktiv.",
+        }
+        print(f"[RAG-Chat] INFO: {banner['message']}")
     else:
-        print("[RAG-Chat] Keine GPU erkannt — CPU-Modus (langsamer)")
+        # No GPU at all
+        banner = {
+            "type": "info",
+            "message": "Keine GPU erkannt. CPU-Modus aktiv (Antworten können langsamer sein).",
+        }
+        print(f"[RAG-Chat] INFO: {banner['message']}")
+
+    app.state.gpu_info = gpu
+    app.state.gpu_banner = banner
 
     from rag.indexer import indexer
     import asyncio
@@ -105,21 +143,10 @@ async def health(request: Request):
     except Exception:
         status["services"]["chromadb"] = "unavailable"
 
-    # GPU status from startup detection
-    gpu = getattr(request.app.state, "gpu_info", None)
-    if gpu:
-        mode = gpu.get("mode", "cpu")
-        gpu_status: dict = {"mode": mode}
-        if mode == "nvidia":
-            gpus = gpu.get("gpus", [])
-            gpu_status["gpu_name"] = ", ".join(g.get("name", "?") for g in gpus)
-            gpu_status["vram_total_mb"] = gpu.get("total_vram_mb", 0)
-            gpu_status["gpu_count"] = gpu.get("gpu_count", 1)
-        elif mode == "amd":
-            gpu_status["note"] = gpu.get("note", "")
-        else:
-            gpu_status["note"] = gpu.get("note", "Keine GPU erkannt. CPU-Modus (langsamer).")
-        status["gpu"] = gpu_status
+    # GPU banner from startup detection (None = everything fine)
+    banner = getattr(request.app.state, "gpu_banner", None)
+    if banner is not None:
+        status["gpu_banner"] = banner
 
     return status
 

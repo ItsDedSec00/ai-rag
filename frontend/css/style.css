@@ -160,6 +160,18 @@ button {
     color: var(--text);
 }
 
+.gpu-info-banner.gpu-warning {
+    background: #fef3c7;
+    color: #92400e;
+    border-bottom-color: #fde68a;
+}
+
+[data-theme="dark"] .gpu-info-banner.gpu-warning {
+    background: rgba(217, 119, 6, 0.12);
+    color: #fbbf24;
+    border-bottom-color: rgba(217, 119, 6, 0.2);
+}
+
 #new-chat-btn {
     width: 100%;
     display: flex;

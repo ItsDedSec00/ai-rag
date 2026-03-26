@@ -55,6 +55,7 @@ services:
       - knowledge_data:/data/knowledge
       - config_data:/data/config
       - logs_data:/data/logs
+      - ./.gpu-mode:/data/.gpu-mode:ro
     depends_on:
       ollama:
         condition: service_started
