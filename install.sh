@@ -167,12 +167,10 @@ fi
 step "2/7  GPU erkennen"
 
 GPU_MODE="cpu"
-GPU_JSON="{}"
-RECOMMENDED_MODEL="llama3.2:1b"
+DEFAULT_MODEL="llama3.2:1b"
 
 if [[ "$ENABLE_GPU" == "no" ]]; then
     info "GPU deaktiviert per --no-gpu Flag"
-    GPU_MODE="cpu"
 else
     # nvidia-container-toolkit prüfen
     NVIDIA_TOOLKIT=false
@@ -191,7 +189,6 @@ else
                 read -rp "  nvidia-container-toolkit installieren? [J/n] " answer
                 if [[ "${answer,,}" != "n" ]]; then
                     info "Installiere nvidia-container-toolkit..."
-                    # Add NVIDIA repo
                     distribution=$(. /etc/os-release; echo "$ID$VERSION_ID")
                     curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
                         gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
@@ -208,34 +205,20 @@ else
             fi
         fi
 
-        # GPU detection
-        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        if [[ -f "$SCRIPT_DIR/scripts/gpu-detect.sh" ]]; then
-            GPU_JSON=$(bash "$SCRIPT_DIR/scripts/gpu-detect.sh" 2>/dev/null || echo '{}')
-        elif [[ -f "$INSTALL_DIR/scripts/gpu-detect.sh" ]]; then
-            GPU_JSON=$(bash "$INSTALL_DIR/scripts/gpu-detect.sh" 2>/dev/null || echo '{}')
-        fi
-
-        GPU_MODE=$(echo "$GPU_JSON" | grep -oP '"mode"\s*:\s*"\K[^"]+' || echo "cpu")
-
-        if [[ "$GPU_MODE" == "nvidia" && "$NVIDIA_TOOLKIT" == "true" ]]; then
-            GPU_NAME=$(echo "$GPU_JSON" | grep -oP '"name"\s*:\s*"\K[^"]+' | head -1 || echo "NVIDIA GPU")
-            GPU_VRAM=$(echo "$GPU_JSON" | grep -oP '"vram_total_mb"\s*:\s*\K[0-9]+' | head -1 || echo "?")
+        if [[ "$NVIDIA_TOOLKIT" == "true" ]]; then
+            GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1 | xargs)
+            GPU_VRAM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1 | xargs)
             ok "GPU: $GPU_NAME (${GPU_VRAM} MB VRAM)"
             GPU_MODE="nvidia"
-        elif [[ "$GPU_MODE" == "nvidia" && "$NVIDIA_TOOLKIT" != "true" ]]; then
+        else
             warn "NVIDIA GPU erkannt, aber Container-Toolkit fehlt → CPU-Modus"
-            GPU_MODE="cpu"
         fi
     else
         info "Keine NVIDIA GPU erkannt → CPU-Modus"
     fi
-
-    RECOMMENDED_MODEL=$(echo "$GPU_JSON" | grep -oP '"model"\s*:\s*"\K[^"]+' || echo "llama3.2:1b")
 fi
 
 ok "Modus: ${GPU_MODE^^}"
-ok "Empfohlenes Modell: $RECOMMENDED_MODEL"
 
 # ═══════════════════════════════════════════════════════════════════
 # 3. INTERAKTIVE KONFIGURATION
@@ -255,9 +238,6 @@ if [[ "$INTERACTIVE" == "true" ]]; then
         echo ""
         ADMIN_PASSWORD="${input_pass}"
     fi
-
-    read -rp "  Standard-Modell [$RECOMMENDED_MODEL]: " input_model
-    RECOMMENDED_MODEL="${input_model:-$RECOMMENDED_MODEL}"
 fi
 
 # Passwort generieren falls leer
@@ -269,7 +249,6 @@ fi
 
 ok "Port: $HTTP_PORT"
 ok "Admin: $ADMIN_USER"
-ok "Modell: $RECOMMENDED_MODEL"
 
 # ═══════════════════════════════════════════════════════════════════
 # 4. INSTALLATION
@@ -336,7 +315,7 @@ KNOWLEDGE_PATH=/data/knowledge
 CONFIG_PATH=/data/config
 
 # Modelle
-CHAT_MODEL=$RECOMMENDED_MODEL
+CHAT_MODEL=$DEFAULT_MODEL
 EMBEDDING_MODEL=nomic-embed-text
 
 # RAG
@@ -475,17 +454,16 @@ if [[ "$OLLAMA_READY" == "true" ]]; then
     docker exec rag-ollama ollama pull nomic-embed-text 2>&1 | tail -3
     ok "Embedding-Modell geladen"
 
-    # Chat-Modell herunterladen
+    # Standard Chat-Modell herunterladen
     if [[ "$SKIP_MODEL_PULL" != "true" ]]; then
-        info "Lade Chat-Modell ($RECOMMENDED_MODEL)..."
-        info "Das kann einige Minuten dauern..."
-        docker exec rag-ollama ollama pull "$RECOMMENDED_MODEL" 2>&1 | tail -3
+        info "Lade Chat-Modell ($DEFAULT_MODEL)..."
+        docker exec rag-ollama ollama pull "$DEFAULT_MODEL" 2>&1 | tail -3
         ok "Chat-Modell geladen"
     fi
 else
     warn "Ollama reagiert noch nicht — Modelle müssen manuell geladen werden"
     warn "  docker exec rag-ollama ollama pull nomic-embed-text"
-    warn "  docker exec rag-ollama ollama pull $RECOMMENDED_MODEL"
+    warn "  docker exec rag-ollama ollama pull $DEFAULT_MODEL"
 fi
 
 # Warte auf Backend
@@ -525,7 +503,7 @@ echo -e "  ${BOLD}Admin-Login:${NC}"
 echo -e "    Benutzer: ${CYAN}$ADMIN_USER${NC}"
 echo -e "    Passwort: ${CYAN}$ADMIN_PASSWORD${NC}"
 echo ""
-echo -e "  ${BOLD}Modell:${NC} $RECOMMENDED_MODEL (${GPU_MODE^^})"
+echo -e "  ${BOLD}Modell:${NC} $DEFAULT_MODEL (${GPU_MODE^^})"
 echo ""
 echo -e "  ${BOLD}Nützliche Befehle:${NC}"
 echo -e "    Status:    ${CYAN}systemctl status rag-chat${NC}"
