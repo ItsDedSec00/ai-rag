@@ -24,7 +24,7 @@ HTTP_PORT=80
 ADMIN_USER="admin"
 ADMIN_PASSWORD=""
 ENABLE_GPU=auto          # auto | yes | no
-GITHUB_REPO=""
+GITHUB_REPO="ItsDedSec00/ai-rag"
 SKIP_MODEL_PULL=false
 INTERACTIVE=true
 
