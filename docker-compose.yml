@@ -5,14 +5,7 @@ services:
     restart: unless-stopped
     volumes:
       - ollama_data:/root/.ollama
-    # GPU passthrough — nur aktivieren wenn nvidia-container-toolkit installiert ist
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    # GPU passthrough via docker-compose.gpu.yml (automatisch erkannt)
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 30s

@@ -336,22 +336,11 @@ mkdir -p "$INSTALL_DIR/nginx"
 htpasswd -bc "$INSTALL_DIR/nginx/htpasswd" "$ADMIN_USER" "$ADMIN_PASSWORD" 2>/dev/null
 ok "htpasswd erstellt ($ADMIN_USER)"
 
-# ── GPU in docker-compose aktivieren ────────────────────────────────
+# GPU wird automatisch bei jedem Start erkannt (start.sh + docker-compose.gpu.yml)
 if [[ "$GPU_MODE" == "nvidia" ]]; then
-    info "Aktiviere GPU-Passthrough in docker-compose.yml..."
-    # Uncomment the GPU deploy section
-    if grep -q '# deploy:' "$INSTALL_DIR/docker-compose.yml"; then
-        sed -i 's/^    # deploy:/    deploy:/' "$INSTALL_DIR/docker-compose.yml"
-        sed -i 's/^    #   resources:/      resources:/' "$INSTALL_DIR/docker-compose.yml"
-        sed -i 's/^    #     reservations:/        reservations:/' "$INSTALL_DIR/docker-compose.yml"
-        sed -i 's/^    #       devices:/          devices:/' "$INSTALL_DIR/docker-compose.yml"
-        sed -i 's/^    #         - driver: nvidia/            - driver: nvidia/' "$INSTALL_DIR/docker-compose.yml"
-        sed -i 's/^    #           count: all/              count: all/' "$INSTALL_DIR/docker-compose.yml"
-        sed -i 's/^    #           capabilities: \[gpu\]/              capabilities: [gpu]/' "$INSTALL_DIR/docker-compose.yml"
-        ok "GPU-Passthrough aktiviert"
-    else
-        ok "GPU-Passthrough bereits aktiv"
-    fi
+    ok "GPU-Passthrough wird automatisch bei jedem Start aktiviert"
+else
+    info "GPU-Passthrough wird aktiviert sobald eine NVIDIA GPU erkannt wird"
 fi
 
 # ═══════════════════════════════════════════════════════════════════
@@ -382,9 +371,9 @@ Requires=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=$INSTALL_DIR
-ExecStart=/usr/bin/docker compose up -d
-ExecStop=/usr/bin/docker compose down
-ExecReload=/usr/bin/docker compose restart
+ExecStart=$INSTALL_DIR/start.sh up
+ExecStop=$INSTALL_DIR/start.sh down
+ExecReload=$INSTALL_DIR/start.sh restart
 TimeoutStartSec=300
 
 [Install]
@@ -432,7 +421,7 @@ fi
 step "7/7  Starten"
 
 info "Starte alle Services..."
-docker compose up -d 2>&1 | tail -5
+bash "$INSTALL_DIR/start.sh" up 2>&1 | tail -5
 ok "Container gestartet"
 
 # Warte auf Ollama

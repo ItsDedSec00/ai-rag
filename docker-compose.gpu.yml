@@ -1,0 +1,15 @@
+# RAG-Chat — © 2026 David Dülle
+# https://duelle.org
+#
+# GPU-Override: Wird automatisch eingebunden wenn eine NVIDIA GPU erkannt wird.
+# Nicht manuell editieren — wird von start.sh verwaltet.
+
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
