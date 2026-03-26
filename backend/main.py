@@ -26,45 +26,21 @@ async def lifespan(app: FastAPI):
     gpu = get_gpu_info()
     container_mode = gpu.get("mode", "cpu")
 
-    # Read host-level GPU detection (written by detect-gpu.sh before Docker start)
-    host_gpu_mode = "cpu"
-    try:
-        with open("/data/.gpu-mode", "r") as f:
-            host_gpu_mode = f.read().strip()
-    except (FileNotFoundError, IsADirectoryError, OSError):
-        pass
-
-    # Determine banner status
+    # Determine banner status based on container-level GPU detection
     # banner=None means everything is fine → no banner shown
     banner = None
-    if host_gpu_mode == "nvidia" and container_mode == "nvidia":
-        # GPU works perfectly → no banner
+    if container_mode == "nvidia":
         gpus = gpu.get("gpus", [])
         names = ", ".join(g.get("name", "?") for g in gpus)
         total_vram = gpu.get("total_vram_mb", 0)
         print(f"[RAG-Chat] GPU aktiv: {names} ({total_vram} MB VRAM)")
-    elif host_gpu_mode == "nvidia-no-toolkit":
-        banner = {
-            "type": "warning",
-            "message": "NVIDIA GPU erkannt, aber nvidia-container-toolkit fehlt. GPU-Beschleunigung nicht aktiv.",
-            "action": "Bitte nvidia-container-toolkit installieren und den Dienst neu starten.",
-        }
-        print(f"[RAG-Chat] WARNUNG: {banner['message']}")
-    elif host_gpu_mode == "nvidia" and container_mode != "nvidia":
-        banner = {
-            "type": "warning",
-            "message": "NVIDIA GPU erkannt, aber Ollama läuft im CPU-Modus.",
-            "action": "Bitte den Dienst neu starten: systemctl restart rag-chat",
-        }
-        print(f"[RAG-Chat] WARNUNG: {banner['message']}")
-    elif host_gpu_mode == "amd":
+    elif container_mode == "amd":
         banner = {
             "type": "info",
             "message": "AMD GPU erkannt — Ollama unterstützt nur NVIDIA GPUs. CPU-Modus aktiv.",
         }
         print(f"[RAG-Chat] INFO: {banner['message']}")
     else:
-        # No GPU at all
         banner = {
             "type": "info",
             "message": "Keine GPU erkannt. CPU-Modus aktiv (Antworten können langsamer sein).",
