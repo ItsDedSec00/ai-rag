@@ -214,7 +214,6 @@ const Updates = (() => {
 
     async function _pollFlag(attempt) {
         if (attempt > 4) {
-            // Flag still set after ~12s → watcher not running, show manual instructions
             _showManualHint();
             return;
         }
@@ -223,13 +222,99 @@ const Updates = (() => {
             const r = await fetch('/api/admin/updates/flag');
             const data = await r.json();
             if (!data.pending) {
-                // Flag was consumed — watcher is running
-                _showStatusBar('ok', 'Update wird im Hintergrund ausgeführt…');
-                setTimeout(_loadLog, 5000);
+                // Flag consumed — watcher is running, show progress screen
+                _showProgress();
             } else {
                 _pollFlag(attempt + 1);
             }
         } catch (_) {}
+    }
+
+    // =================================================================
+    // Progress screen (shown when watcher picks up the update)
+    // =================================================================
+
+    function _showProgress() {
+        document.getElementById('update-available-panel')?.classList.add('hidden');
+        const panel = document.getElementById('update-progress-panel');
+        panel?.classList.remove('hidden');
+        // Step 1 already done (flag consumed)
+        _stepDone(1);
+        _stepActive(2);
+        _trackUpdateProgress();
+    }
+
+    async function _trackUpdateProgress() {
+        // Wait a bit for git pull / build to start, then watch health endpoint
+        await new Promise(res => setTimeout(res, 15000));
+        _stepDone(2);
+        _stepActive(3);
+
+        // Poll health — wait for backend to go down (build + restart)
+        let wentDown = false;
+        for (let i = 0; i < 40; i++) {
+            await new Promise(res => setTimeout(res, 5000));
+            const up = await _checkHealth();
+            if (!up) {
+                wentDown = true;
+                _stepDone(3);
+                _stepActive(4);
+                break;
+            }
+        }
+
+        if (!wentDown) {
+            // Backend never went down — still mark as done (fast rebuild or already up-to-date)
+            _stepDone(3);
+            _stepActive(4);
+        }
+
+        // Wait for backend to come back up
+        for (let i = 0; i < 60; i++) {
+            await new Promise(res => setTimeout(res, 5000));
+            const up = await _checkHealth();
+            if (up) {
+                _stepDone(4);
+                _stepDone(5);
+                document.getElementById('update-progress-title').textContent = 'Update abgeschlossen!';
+                document.getElementById('update-progress-reload')?.classList.remove('hidden');
+                _loadStatus();
+                _loadLog();
+                return;
+            }
+        }
+
+        // Timed out
+        document.getElementById('update-progress-title').textContent = 'Timeout — bitte Logs prüfen';
+        _showStatusBar('warn', 'System antwortet nicht. Logs prüfen: docker compose logs backend');
+    }
+
+    async function _checkHealth() {
+        try {
+            const r = await fetch('/api/health', { signal: AbortSignal.timeout(4000) });
+            return r.ok;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function _stepDone(n) {
+        const el = document.getElementById('ustep-' + n);
+        if (!el) return;
+        el.classList.remove('pending', 'active');
+        el.classList.add('done');
+        el.querySelector('.icon-spinner')?.classList.add('hidden');
+        el.querySelector('.icon-dot')?.classList.add('hidden');
+        el.querySelector('.icon-check')?.classList.remove('hidden');
+    }
+
+    function _stepActive(n) {
+        const el = document.getElementById('ustep-' + n);
+        if (!el) return;
+        el.classList.remove('pending');
+        el.classList.add('active');
+        el.querySelector('.icon-dot')?.classList.add('hidden');
+        el.querySelector('.icon-spinner')?.classList.remove('hidden');
     }
 
     function _showManualHint() {

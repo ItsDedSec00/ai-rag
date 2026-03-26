@@ -2289,6 +2289,52 @@ footer {
     flex-direction: column;
 }
 
+/* Update progress steps */
+.update-progress-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 8px 0;
+}
+
+.update-step {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.2s;
+}
+
+.update-step:last-child { border-bottom: none; }
+
+.update-step-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.update-step-label {
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.update-step.pending .update-step-label,
+.update-step.pending .update-step-icon { opacity: 0.35; }
+
+.update-step.active { background: var(--bg-surface); }
+.update-step.active .update-step-label { color: var(--accent); }
+
+.update-step.done .icon-check { color: #22c55e; }
+
+.icon-dot { color: var(--text-muted); font-size: 0.5rem; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.icon-spinner { animation: spin 0.9s linear infinite; color: var(--accent); }
+
 .update-log-row {
     display: flex;
     align-items: baseline;
