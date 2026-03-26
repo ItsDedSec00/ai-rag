@@ -204,6 +204,7 @@ async def _stream_ollama(
                     "model": model,
                     "prompt": prompt,
                     "stream": True,
+                    "think": cfg.ollama_thinking_mode(),
                     "options": {
                         "temperature": temperature,
                         "top_p": cfg.ollama_top_p(),

@@ -4,7 +4,7 @@
 #
 # One-Click Installer für RAG-Chat
 # Usage: curl -fsSL https://raw.githubusercontent.com/REPO/main/install.sh | bash
-#    or: bash install.sh [--uninstall] [--port 8080] [--no-gpu]
+#    or: bash install.sh [--uninstall] [--port 80] [--no-gpu]
 
 set -euo pipefail
 
@@ -20,7 +20,7 @@ step() { echo -e "\n${CYAN}${BOLD}── $* ──${NC}"; }
 
 # ── Defaults ────────────────────────────────────────────────────────
 INSTALL_DIR="/opt/rag-chat"
-HTTP_PORT=8080
+HTTP_PORT=80
 ADMIN_USER="admin"
 ADMIN_PASSWORD=""
 ENABLE_GPU=auto          # auto | yes | no
@@ -46,7 +46,7 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: bash install.sh [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --port PORT       HTTP-Port (default: 8080)"
+            echo "  --port PORT       HTTP-Port (default: 80)"
             echo "  --dir PATH        Installationsverzeichnis (default: /opt/rag-chat)"
             echo "  --no-gpu          GPU-Support deaktivieren (CPU-only)"
             echo "  --gpu             GPU-Support erzwingen"
@@ -290,6 +290,14 @@ cd "$INSTALL_DIR"
 # ── .env erstellen ──────────────────────────────────────────────────
 info "Erstelle .env Konfiguration..."
 
+# Versionsnummer aus Git ermitteln
+APP_VERSION=$(git -C "$INSTALL_DIR" describe --tags --abbrev=0 2>/dev/null || \
+              git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || \
+              echo "dev")
+
+# Leere Update-Flag-Datei erstellen (Bind-Mount für Backend)
+touch "$INSTALL_DIR/.update-flag" 2>/dev/null || true
+
 cat > "$INSTALL_DIR/.env" << EOF
 # RAG-Chat — Konfiguration (generiert von install.sh)
 # © 2026 David Dülle · https://duelle.org
@@ -323,7 +331,8 @@ RAG_TOP_K=5
 CONTEXT_WINDOW=4096
 TEMPERATURE=0.7
 
-# Updates
+# Version & Updates
+APP_VERSION=$APP_VERSION
 GITHUB_REPO=${GITHUB_REPO:-}
 UPDATE_CHANNEL=stable
 EOF
@@ -453,6 +462,56 @@ EOF
     systemctl enable rag-chat-update.timer
     ok "Update-Timer aktiviert (täglich)"
 fi
+
+# ── Update-Watcher (führt Updates aus wenn Admin-UI Trigger setzt) ──
+cat > "$INSTALL_DIR/update-watcher.sh" << 'WATCHEOF'
+#!/usr/bin/env bash
+# Überwacht .update-flag — wird vom Backend geschrieben wenn Admin Update/Rollback anfordert
+INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FLAG="$INSTALL_DIR/.update-flag"
+
+while true; do
+    sleep 30
+    if [[ -s "$FLAG" ]]; then
+        ACTION=$(cat "$FLAG" 2>/dev/null | tr -d '[:space:]')
+        > "$FLAG"  # Flag löschen bevor Aktion startet
+        case "$ACTION" in
+            rollback)
+                echo "[$(date -Iseconds)] Rollback angefordert" >> "$INSTALL_DIR/data/logs/update.log"
+                bash "$INSTALL_DIR/update.sh" --rollback --force 2>&1 | \
+                    tee -a "$INSTALL_DIR/data/logs/update.log"
+                ;;
+            update|*)
+                echo "[$(date -Iseconds)] Update angefordert" >> "$INSTALL_DIR/data/logs/update.log"
+                bash "$INSTALL_DIR/update.sh" 2>&1 | \
+                    tee -a "$INSTALL_DIR/data/logs/update.log"
+                ;;
+        esac
+    fi
+done
+WATCHEOF
+chmod +x "$INSTALL_DIR/update-watcher.sh"
+
+cat > /etc/systemd/system/rag-chat-watcher.service << EOF
+[Unit]
+Description=RAG-Chat Update-Watcher
+After=rag-chat.service
+Requires=rag-chat.service
+
+[Service]
+Type=simple
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$INSTALL_DIR/update-watcher.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable rag-chat-watcher.service
+ok "Update-Watcher aktiviert"
 
 # ═══════════════════════════════════════════════════════════════════
 # 7. START & MODELL

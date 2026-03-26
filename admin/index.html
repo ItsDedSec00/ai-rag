@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin — RAG-Chat</title>
-    <link rel="stylesheet" href="/admin/css/admin.css">
+    <link rel="stylesheet" href="/admin/css/admin.css?v=2">
 </head>
 <body>
     <div id="admin-app">
@@ -31,6 +31,11 @@
                 <a href="#" class="nav-item" data-tab="config">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     Einstellungen
+                </a>
+                <a href="#" class="nav-item" data-tab="updates">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    Updates
+                    <span id="update-nav-badge" class="nav-badge hidden"></span>
                 </a>
             </nav>
             <div class="sidebar-footer">
@@ -217,13 +222,15 @@
                  ============================================================ -->
             <div id="models" class="page-content hidden">
 
-                <!-- Hardware info + recommendation -->
-                <section class="panel recommendation-panel">
+                <!-- Hardware info -->
+                <section class="panel">
                     <div class="panel-header">
                         <h2>Deine Hardware</h2>
                     </div>
                     <div class="rec-hardware" id="rec-hardware">
-                        <div class="rec-hw-icon">🖥️</div>
+                        <div class="rec-hw-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        </div>
                         <div>
                             <div class="rec-hw-summary" id="rec-hw-summary">Wird erkannt…</div>
                             <div class="rec-hw-hint" id="rec-hw-hint"></div>
@@ -231,25 +238,45 @@
                     </div>
                 </section>
 
-                <section class="panel recommendation-panel">
-                    <div class="panel-header">
-                        <h2>Empfehlung für dein System</h2>
-                    </div>
-                    <div class="rec-best" id="rec-best">
-                        <div class="rec-best-placeholder muted" style="padding:20px">Wird berechnet…</div>
-                    </div>
-                </section>
-
-                <!-- Active model + params -->
+                <!-- Active model display -->
                 <section class="panel">
                     <div class="panel-header">
-                        <h2>Aktives Modell &amp; Einstellungen</h2>
+                        <h2>Aktives Modell</h2>
                     </div>
                     <div class="active-model-row">
                         <div class="active-model-info">
                             <span class="active-label">Aktiv:</span>
                             <span class="active-name" id="active-model-name">—</span>
                         </div>
+                    </div>
+                </section>
+
+                <!-- Model families (rendered by JS) -->
+                <div id="model-families">
+                    <div class="muted" style="padding:20px">Lade Modelle…</div>
+                </div>
+
+                <!-- Thinking mode toggle (shown for Qwen/DeepSeek) -->
+                <section class="panel" id="thinking-section" style="display:none">
+                    <div class="panel-header">
+                        <h2>Thinking-Modus</h2>
+                    </div>
+                    <div class="thinking-toggle-row">
+                        <div class="thinking-info">
+                            <div class="thinking-title">Chain-of-Thought aktivieren</div>
+                            <div class="thinking-desc">Das Modell denkt Schritt für Schritt nach, bevor es antwortet. Langsamer, aber bessere Ergebnisse bei komplexen Fragen.</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="thinking-toggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </section>
+
+                <!-- Generation params -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>Generierungseinstellungen</h2>
                     </div>
                     <div class="params-grid">
                         <div class="param">
@@ -264,7 +291,7 @@
                         </div>
                         <div class="param">
                             <label for="param-ctx">Kontextfenster <span class="param-val" id="param-ctx-val">4096</span></label>
-                            <input type="range" id="param-ctx" min="512" max="32768" step="512" value="4096">
+                            <input type="range" id="param-ctx" min="512" max="131072" step="512" value="4096">
                             <div class="param-hint">Wie viel Text die KI auf einmal lesen kann</div>
                         </div>
                         <div class="param">
@@ -314,17 +341,6 @@
                             <button id="btn-add-custom" class="btn-sm btn-accent">Hinzufügen</button>
                         </div>
                         <div id="custom-model-msg" class="custom-model-msg hidden"></div>
-                    </div>
-                </section>
-
-                <!-- Model catalog -->
-                <section class="panel">
-                    <div class="panel-header">
-                        <h2>Alle Modelle</h2>
-                        <span class="muted" id="installed-count"></span>
-                    </div>
-                    <div id="model-catalog" class="model-catalog">
-                        <div class="muted" style="padding:20px">Lädt…</div>
                     </div>
                 </section>
 
@@ -674,6 +690,94 @@
                 </section>
             </div>
 
+            <!-- ============================================================
+                 Updates page (ADM-04)
+                 ============================================================ -->
+            <div id="updates" class="page-content hidden">
+
+                <!-- Version status -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>Versionsstand</h2>
+                        <button id="btn-check-updates" class="btn-sm btn-accent">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                            Jetzt prüfen
+                        </button>
+                    </div>
+                    <div class="update-version-grid">
+                        <div class="update-version-card">
+                            <div class="update-version-label">Installiert</div>
+                            <div class="update-version-value" id="update-local-version">—</div>
+                        </div>
+                        <div class="update-version-arrow">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                        </div>
+                        <div class="update-version-card">
+                            <div class="update-version-label">Neueste Version</div>
+                            <div class="update-version-value" id="update-remote-version">—</div>
+                        </div>
+                    </div>
+                    <div id="update-status-bar" class="update-status-bar hidden"></div>
+                </section>
+
+                <!-- Update available -->
+                <section class="panel hidden" id="update-available-panel">
+                    <div class="panel-header">
+                        <h2>Update verfügbar</h2>
+                    </div>
+                    <div class="update-action-row">
+                        <div class="update-action-info">
+                            <div class="update-action-title" id="update-action-title">—</div>
+                            <div class="update-action-desc">
+                                Das Update wird im Hintergrund ausgeführt. Der Server startet automatisch neu.
+                                Dies dauert ca. 1–3 Minuten.
+                            </div>
+                        </div>
+                        <div class="update-action-btns">
+                            <button id="btn-do-update" class="btn-sm btn-green">
+                                Update installieren
+                            </button>
+                            <a id="update-changelog-link" href="#" target="_blank" rel="noopener" class="btn-sm">
+                                Changelog
+                            </a>
+                        </div>
+                    </div>
+                    <div id="update-changelog" class="update-changelog hidden"></div>
+                </section>
+
+                <!-- Rollback -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>Rollback</h2>
+                    </div>
+                    <div class="update-action-row">
+                        <div class="update-action-info">
+                            <div class="update-action-title">Auf vorherige Version zurücksetzen</div>
+                            <div class="update-action-desc">
+                                Setzt den Code auf den vorherigen Git-Commit zurück und baut den Backend-Container neu.
+                                Die Konfiguration bleibt erhalten.
+                            </div>
+                        </div>
+                        <div class="update-action-btns">
+                            <button id="btn-rollback" class="btn-sm btn-red">
+                                Rollback starten
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Update log -->
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2>Update-Verlauf</h2>
+                    </div>
+                    <div id="update-log-list" class="update-log-list">
+                        <div class="muted" style="padding:16px">Kein Update-Verlauf vorhanden</div>
+                    </div>
+                </section>
+
+            </div>
+
             <footer>
                 &copy; 2026 <a href="https://duelle.org" target="_blank" rel="noopener">David Dülle</a> · RAG-Chat
             </footer>
@@ -681,8 +785,9 @@
     </div>
 
     <script src="/admin/js/dashboard.js"></script>
-    <script src="/admin/js/models.js"></script>
+    <script src="/admin/js/models.js?v=2"></script>
     <script src="/admin/js/files.js"></script>
     <script src="/admin/js/config.js"></script>
+    <script src="/admin/js/updates.js?v=1"></script>
 </body>
 </html>

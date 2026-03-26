@@ -2,23 +2,24 @@
 // https://duelle.org
 
 /**
- * Models page (ADM-02): hardware-aware recommendations,
- * model catalog, pull/delete, generation params, custom models.
- *
- * Pull runs in background — user can navigate to other tabs
- * and return; progress bar persists.
+ * Models page (ADM-02 v2): family-based model selection,
+ * hardware-aware size recommendation, thinking mode toggle,
+ * pull/delete, generation params, custom models.
  */
 
 const Models = (() => {
 
-    let _catalog = [];
+    let _families = [];
     let _installed = [];
     let _activeModel = '';
+    let _thinkingMode = false;
+    let _customModels = [];
+    let _hardware = {};
 
     // Background pull state (survives tab switches)
     let _pulling = false;
     let _pullModelId = '';
-    let _pullAbort = null;   // AbortController
+    let _pullAbort = null;
 
     // =================================================================
     // Tab navigation (shared between pages)
@@ -31,29 +32,23 @@ const Models = (() => {
                 const tab = link.dataset.tab;
                 if (link.classList.contains('disabled')) return;
 
-                // Toggle active nav
                 document.querySelectorAll('.nav-item[data-tab]').forEach(l => l.classList.remove('active'));
                 link.classList.add('active');
 
-                // Toggle pages
                 document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
                 const page = document.getElementById(tab);
                 if (page) page.classList.remove('hidden');
 
-                // Update header title
-                const titles = { dashboard: 'Dashboard', models: 'Modelle', files: 'Dateien', config: 'Einstellungen' };
+                const titles = { dashboard: 'Dashboard', models: 'Modelle', files: 'Dateien', config: 'Einstellungen', updates: 'Updates' };
                 const h1 = document.querySelector('.header-title h1');
                 if (h1) h1.textContent = titles[tab] || tab;
 
-                // Load models data on first visit
-                if (tab === 'models' && _catalog.length === 0) {
+                if (tab === 'models' && _families.length === 0) {
                     _loadAll();
                 }
-                // Load files data on first visit
                 if (tab === 'files' && typeof Files !== 'undefined') {
                     Files.load();
                 }
-                // Load config data on first visit
                 if (tab === 'config' && typeof Config !== 'undefined') {
                     Config.load();
                 }
@@ -71,11 +66,11 @@ const Models = (() => {
             _loadInstalled(),
             _loadActiveModel(),
         ]);
-        _renderCatalog();
+        _renderFamilies();
     }
 
     // =================================================================
-    // Recommendations
+    // Recommendations (family-based)
     // =================================================================
 
     async function _loadRecommendations() {
@@ -84,42 +79,14 @@ const Models = (() => {
             if (!r.ok) return;
             const data = await r.json();
 
+            _hardware = data.hardware || {};
+            _families = data.families || [];
+            _customModels = data.custom_models || [];
+
             // Hardware info
             const hw = data.hardware;
             document.getElementById('rec-hw-summary').textContent = hw.summary;
             document.getElementById('rec-hw-hint').textContent = hw.hint;
-
-            // Best recommendation
-            _catalog = data.models;
-            const best = data.recommendation;
-
-            if (best) {
-                const isInstalled = _installed.some(m => m.name === best.id);
-                const isActive = _activeModel === best.id;
-
-                document.getElementById('rec-best').innerHTML = `
-                    <div class="rec-card">
-                        <div class="rec-card-badge">⭐</div>
-                        <div class="rec-card-body">
-                            <div class="rec-card-name">${_esc(best.name)}</div>
-                            <div class="rec-card-desc">${_esc(best.description)}</div>
-                            <div class="rec-card-tags">
-                                <span class="rec-tag">${_esc(best.params)}</span>
-                                <span class="rec-tag">${_esc(best.size_gb + ' GB')}</span>
-                                <span class="rec-tag">${_esc(best.speed)}</span>
-                                <span class="rec-tag green">${_esc(best.best_for)}</span>
-                            </div>
-                        </div>
-                        <div class="rec-card-action">
-                            ${isActive
-                                ? '<span class="model-active-badge">Aktiv</span>'
-                                : isInstalled
-                                    ? `<button class="btn-sm btn-accent" onclick="Models.activate('${_esc(best.id)}')">Aktivieren</button>`
-                                    : `<button class="btn-sm btn-green" onclick="Models.pull('${_esc(best.id)}')">Installieren</button>`
-                            }
-                        </div>
-                    </div>`;
-            }
         } catch (_) {}
     }
 
@@ -147,6 +114,7 @@ const Models = (() => {
             const data = await r.json();
 
             _activeModel = data.model;
+            _thinkingMode = data.thinking_mode || false;
             document.getElementById('active-model-name').textContent = data.model;
 
             // Sliders
@@ -160,92 +128,176 @@ const Models = (() => {
             if (ctx) { ctx.value = data.context_window; document.getElementById('param-ctx-val').textContent = data.context_window; }
             if (prompt) prompt.value = data.system_prompt || '';
 
-            // New params
             const mt = document.getElementById('param-maxtokens');
             const rp = document.getElementById('param-repeat');
             const lang = document.getElementById('param-lang');
             if (mt && data.max_tokens) { mt.value = data.max_tokens; document.getElementById('param-maxtokens-val').textContent = data.max_tokens; }
             if (rp && data.repeat_penalty) { rp.value = data.repeat_penalty; document.getElementById('param-repeat-val').textContent = data.repeat_penalty; }
             if (lang && data.response_language) lang.value = data.response_language;
+
+            // Thinking mode toggle
+            const toggle = document.getElementById('thinking-toggle');
+            if (toggle) toggle.checked = _thinkingMode;
+            _updateThinkingVisibility();
         } catch (_) {}
     }
 
     // =================================================================
-    // Render catalog
+    // Render family cards
     // =================================================================
 
-    function _renderCatalog() {
-        const container = document.getElementById('model-catalog');
+    function _renderFamilies() {
+        const container = document.getElementById('model-families');
         const installedNames = new Set(_installed.map(m => m.name));
-        let installedCount = 0;
 
-        container.innerHTML = _catalog.map(m => {
-            const installed = installedNames.has(m.id);
-            const active = _activeModel === m.id;
-            const isCustom = !!m.custom;
-            const isPulling = _pulling && _pullModelId === m.id;
-            if (installed) installedCount++;
+        let html = '';
 
-            const stars = m.stars > 0
-                ? '★'.repeat(m.stars) + '☆'.repeat(5 - m.stars)
-                : '—';
+        for (const fam of _families) {
+            const recIdx = fam.recommended_idx;
 
-            let actions = '';
-            if (isPulling) {
-                actions = '<span class="model-meta-tag">Wird heruntergeladen…</span>';
-            } else if (active) {
-                actions = '<span class="model-active-badge">Aktiv</span>';
-            } else if (installed) {
-                actions = `
-                    <button class="btn-sm btn-accent" onclick="Models.activate('${_esc(m.id)}')">Aktivieren</button>
-                    <button class="btn-sm btn-red" onclick="Models.remove('${_esc(m.id)}')">Löschen</button>`;
-            } else if (m.compatible) {
-                actions = `<button class="btn-sm btn-green" onclick="Models.pull('${_esc(m.id)}')">Installieren</button>`;
-            } else {
-                actions = `<span class="model-meta-tag">Nicht kompatibel</span>`;
-            }
-
-            // Custom models get a "remove from list" button
-            if (isCustom && !isPulling) {
-                actions += ` <button class="btn-sm btn-icon" onclick="Models.removeCustom('${_esc(m.id)}')" title="Aus Liste entfernen">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>`;
-            }
-
-            // Installed model: show info button
-            let infoBtn = '';
-            if (installed) {
-                infoBtn = `<button class="btn-sm btn-icon" onclick="Models.showInfo('${_esc(m.id)}')" title="Modell-Details">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                </button>`;
-            }
-
-            return `
-                <div class="model-row ${m.compatible ? '' : 'incompatible'}">
-                    <div class="model-tier ${m.tier}"></div>
-                    <div class="model-info">
-                        <div class="model-name-row">
-                            <span class="model-name">${_esc(m.name)}</span>
-                            ${active ? '<span class="model-active-badge">Aktiv</span>' : ''}
-                            ${installed && !active ? '<span class="model-installed-badge">Installiert</span>' : ''}
-                            ${isCustom ? '<span class="model-custom-badge">Manuell</span>' : ''}
-                        </div>
-                        <div class="model-desc">${_esc(m.description)}</div>
-                        <div class="model-meta">
-                            ${m.params !== '—' ? `<span class="model-meta-tag">${_esc(m.params)}</span>` : ''}
-                            ${m.size_gb > 0 ? `<span class="model-meta-tag">${m.size_gb} GB</span>` : ''}
-                            ${m.speed !== '—' ? `<span class="model-meta-tag">${_esc(m.speed)}</span>` : ''}
-                            ${m.best_for !== '—' ? `<span class="model-meta-tag">${_esc(m.best_for)}</span>` : ''}
-                        </div>
-                        <div class="model-info-detail hidden" id="model-info-${CSS.escape(m.id)}"></div>
+            html += `
+            <section class="panel family-card" data-family="${_esc(fam.key)}">
+                <div class="family-header">
+                    <div class="family-title-row">
+                        <h2 class="family-name">${_esc(fam.name)}</h2>
+                        <span class="family-vendor">${_esc(fam.vendor)}</span>
+                        ${fam.supports_thinking ? '<span class="family-badge thinking-badge">Thinking</span>' : ''}
                     </div>
-                    <div class="model-stars">${stars}</div>
-                    <div class="model-actions">${infoBtn}${actions}</div>
-                </div>`;
-        }).join('');
+                    <div class="family-desc">${_esc(fam.description)}</div>
+                </div>
+                <div class="family-sizes">
+                    ${fam.sizes.map((sz, i) => {
+                        const installed = installedNames.has(sz.id);
+                        const active = _activeModel === sz.id;
+                        const isPulling = _pulling && _pullModelId === sz.id;
+                        const isRecommended = i === recIdx;
 
-        document.getElementById('installed-count').textContent =
-            installedCount + ' von ' + _catalog.length + ' installiert';
+                        let statusClass = '';
+                        let statusLabel = '';
+                        if (active) {
+                            statusClass = 'active';
+                            statusLabel = 'Aktiv';
+                        } else if (installed) {
+                            statusClass = 'installed';
+                            statusLabel = 'Installiert';
+                        } else if (isPulling) {
+                            statusClass = 'pulling';
+                            statusLabel = 'Lädt…';
+                        } else if (!sz.compatible) {
+                            statusClass = 'incompatible';
+                            statusLabel = 'Zu groß';
+                        }
+
+                        let action = '';
+                        if (isPulling) {
+                            action = '<span class="size-status-text">Wird heruntergeladen…</span>';
+                        } else if (active) {
+                            action = '<span class="size-active-badge">Aktiv</span>';
+                        } else if (installed) {
+                            action = `<button class="btn-sm btn-accent" onclick="Models.activate('${_esc(sz.id)}')">Aktivieren</button>
+                                      <button class="btn-sm btn-red" onclick="Models.remove('${_esc(sz.id)}')">Löschen</button>`;
+                        } else if (sz.compatible) {
+                            action = `<button class="btn-sm btn-green" onclick="Models.pull('${_esc(sz.id)}')">Installieren</button>`;
+                        } else {
+                            action = '<span class="size-status-text incompatible-text">Nicht kompatibel</span>';
+                        }
+
+                        return `
+                        <div class="size-row ${statusClass}">
+                            <div class="size-info">
+                                <span class="size-label">${_esc(sz.label)}</span>
+                                ${isRecommended ? '<span class="size-rec-badge">Empfohlen</span>' : ''}
+                                <span class="size-meta">${sz.size_gb} GB</span>
+                            </div>
+                            <div class="size-actions">${action}</div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </section>`;
+        }
+
+        // Custom models section (if any installed that aren't in families)
+        if (_customModels.length > 0) {
+            html += `
+            <section class="panel family-card custom-family">
+                <div class="family-header">
+                    <div class="family-title-row">
+                        <h2 class="family-name">Eigene Modelle</h2>
+                        <span class="family-vendor">Manuell</span>
+                    </div>
+                    <div class="family-desc">Manuell hinzugefügte Ollama-Modelle.</div>
+                </div>
+                <div class="family-sizes">
+                    ${_customModels.map(id => {
+                        const installed = installedNames.has(id);
+                        const active = _activeModel === id;
+                        const isPulling = _pulling && _pullModelId === id;
+
+                        let action = '';
+                        if (isPulling) {
+                            action = '<span class="size-status-text">Wird heruntergeladen…</span>';
+                        } else if (active) {
+                            action = '<span class="size-active-badge">Aktiv</span>';
+                        } else if (installed) {
+                            action = `<button class="btn-sm btn-accent" onclick="Models.activate('${_esc(id)}')">Aktivieren</button>
+                                      <button class="btn-sm btn-red" onclick="Models.remove('${_esc(id)}')">Löschen</button>`;
+                        } else {
+                            action = `<button class="btn-sm btn-green" onclick="Models.pull('${_esc(id)}')">Installieren</button>`;
+                        }
+                        action += ` <button class="btn-sm btn-icon" onclick="Models.removeCustom('${_esc(id)}')" title="Aus Liste entfernen">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>`;
+
+                        return `
+                        <div class="size-row ${active ? 'active' : installed ? 'installed' : ''}">
+                            <div class="size-info">
+                                <span class="size-label">${_esc(id)}</span>
+                            </div>
+                            <div class="size-actions">${action}</div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </section>`;
+        }
+
+        container.innerHTML = html;
+        _updateThinkingVisibility();
+    }
+
+    // =================================================================
+    // Thinking mode
+    // =================================================================
+
+    function _updateThinkingVisibility() {
+        const section = document.getElementById('thinking-section');
+        if (!section) return;
+
+        // Show thinking toggle only if active model belongs to a family that supports it
+        const activeFam = _families.find(f =>
+            f.sizes.some(s => s.id === _activeModel)
+        );
+        if (activeFam && activeFam.supports_thinking) {
+            section.style.display = '';
+        } else {
+            section.style.display = 'none';
+        }
+    }
+
+    async function _toggleThinking() {
+        const toggle = document.getElementById('thinking-toggle');
+        if (!toggle) return;
+        _thinkingMode = toggle.checked;
+
+        try {
+            await fetch('/api/admin/models/params', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ thinking_mode: _thinkingMode }),
+            });
+            const msg = document.getElementById('params-saved-msg');
+            msg.classList.remove('hidden');
+            setTimeout(() => msg.classList.add('hidden'), 2000);
+        } catch (_) {}
     }
 
     // =================================================================
@@ -268,16 +320,13 @@ const Models = (() => {
         const nameEl = document.getElementById('pull-bar-name');
         const cancelBtn = document.getElementById('pull-bar-cancel');
 
-        const catalogEntry = _catalog.find(m => m.id === modelId);
-        nameEl.textContent = catalogEntry ? catalogEntry.name : modelId;
+        nameEl.textContent = modelId;
         fill.style.width = '0%';
         status.textContent = 'Verbinde mit Ollama…';
         bar.classList.remove('hidden', 'done', 'error');
+        cancelBtn.textContent = 'Abbrechen';
 
-        // Update catalog to show "downloading" state
-        _renderCatalog();
-
-        let totalSize = 0;
+        _renderFamilies();
 
         try {
             const resp = await fetch('/api/admin/models/pull', {
@@ -312,11 +361,6 @@ const Models = (() => {
                             status.textContent = 'Fehler: ' + (data.error || 'Unbekannt');
                             bar.classList.add('error');
                         } else {
-                            // Track total download size from first layer
-                            if (data.total && data.total > totalSize) {
-                                totalSize += data.total;
-                            }
-
                             if (data.total && data.completed) {
                                 const pct = Math.round((data.completed / data.total) * 100);
                                 fill.style.width = pct + '%';
@@ -331,12 +375,9 @@ const Models = (() => {
                 }
             }
 
-            // Reload catalog after pull
             await _loadInstalled();
-            _renderCatalog();
-            await _loadRecommendations();
+            _renderFamilies();
 
-            // Auto-hide bar after 5s on success
             setTimeout(() => {
                 if (bar.classList.contains('done')) {
                     bar.classList.add('hidden');
@@ -356,7 +397,7 @@ const Models = (() => {
             _pullModelId = '';
             _pullAbort = null;
             cancelBtn.textContent = 'Schließen';
-            _renderCatalog();
+            _renderFamilies();
         }
     }
 
@@ -365,54 +406,6 @@ const Models = (() => {
             _pullAbort.abort();
         }
         document.getElementById('pull-bar')?.classList.add('hidden');
-    }
-
-    // =================================================================
-    // Model info (from Ollama /api/show)
-    // =================================================================
-
-    async function showInfo(modelId) {
-        const detailId = 'model-info-' + CSS.escape(modelId);
-        const el = document.getElementById(detailId);
-        if (!el) return;
-
-        // Toggle visibility
-        if (!el.classList.contains('hidden')) {
-            el.classList.add('hidden');
-            return;
-        }
-
-        el.innerHTML = '<span class="muted" style="padding:0;font-size:0.75rem">Lädt…</span>';
-        el.classList.remove('hidden');
-
-        try {
-            const r = await fetch('/api/admin/models/show?model=' + encodeURIComponent(modelId));
-            if (!r.ok) {
-                el.innerHTML = '<span class="muted" style="padding:0;font-size:0.75rem">Details nicht verfügbar</span>';
-                return;
-            }
-            const data = await r.json();
-
-            const tags = [];
-            if (data.family) tags.push(`Familie: ${_esc(data.family)}`);
-            if (data.parameter_size) tags.push(`Parameter: ${_esc(data.parameter_size)}`);
-            if (data.quantization) tags.push(`Quantisierung: ${_esc(data.quantization)}`);
-            if (data.format) tags.push(`Format: ${_esc(data.format)}`);
-            if (data.context_length) tags.push(`Kontextfenster: ${data.context_length.toLocaleString()}`);
-            if (data.layers) tags.push(`Schichten: ${data.layers}`);
-
-            if (tags.length === 0) {
-                el.innerHTML = '<span class="muted" style="padding:0;font-size:0.75rem">Keine Details verfügbar</span>';
-                return;
-            }
-
-            el.innerHTML = `<div class="model-detail-tags">${tags.map(t =>
-                `<span class="model-detail-tag">${t}</span>`
-            ).join('')}</div>`;
-
-        } catch (e) {
-            el.innerHTML = '<span class="muted" style="padding:0;font-size:0.75rem">Fehler beim Laden</span>';
-        }
     }
 
     // =================================================================
@@ -429,8 +422,8 @@ const Models = (() => {
             if (r.ok) {
                 _activeModel = modelId;
                 document.getElementById('active-model-name').textContent = modelId;
-                _renderCatalog();
-                await _loadRecommendations();
+                _renderFamilies();
+                _updateThinkingVisibility();
             }
         } catch (_) {}
     }
@@ -449,7 +442,16 @@ const Models = (() => {
             });
             if (r.ok) {
                 _installed = _installed.filter(m => m.name !== modelId);
-                _renderCatalog();
+                // If it's a custom model, also remove it from the custom list
+                if (_customModels.includes(modelId)) {
+                    await fetch('/api/admin/models/custom/remove', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ model: modelId }),
+                    });
+                    _customModels = _customModels.filter(id => id !== modelId);
+                }
+                _renderFamilies();
             }
         } catch (_) {}
     }
@@ -512,10 +514,9 @@ const Models = (() => {
             input.value = '';
             _showCustomMsg(`"${modelId}" wurde hinzugefügt`, false);
 
-            // Reload catalog
             await _loadRecommendations();
             await _loadInstalled();
-            _renderCatalog();
+            _renderFamilies();
 
         } catch (e) {
             _showCustomMsg('Fehler: ' + e.message, true);
@@ -523,18 +524,33 @@ const Models = (() => {
     }
 
     async function removeCustom(modelId) {
-        if (!confirm(`"${modelId}" aus der Liste entfernen?`)) return;
+        const isInstalled = _installed.some(m => m.name === modelId);
+        const msg = isInstalled
+            ? `"${modelId}" aus der Liste entfernen und aus Ollama löschen?`
+            : `"${modelId}" aus der Liste entfernen?`;
+        if (!confirm(msg)) return;
 
         try {
+            // Remove from custom list
             const r = await fetch('/api/admin/models/custom/remove', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ model: modelId }),
             });
-            if (r.ok) {
-                _catalog = _catalog.filter(m => m.id !== modelId);
-                _renderCatalog();
+            if (!r.ok) return;
+            _customModels = _customModels.filter(id => id !== modelId);
+
+            // Also delete from Ollama if installed
+            if (isInstalled) {
+                await fetch('/api/admin/models/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: modelId }),
+                });
+                _installed = _installed.filter(m => m.name !== modelId);
             }
+
+            _renderFamilies();
         } catch (_) {}
     }
 
@@ -596,6 +612,9 @@ const Models = (() => {
         document.getElementById('param-lang')?.addEventListener('change', _debounceSave);
         document.getElementById('param-prompt')?.addEventListener('input', _debounceSave);
 
+        // Thinking mode toggle
+        document.getElementById('thinking-toggle')?.addEventListener('change', _toggleThinking);
+
         // Custom model input
         document.getElementById('btn-add-custom')?.addEventListener('click', addCustom);
         document.getElementById('custom-model-input')?.addEventListener('keydown', (e) => {
@@ -606,7 +625,7 @@ const Models = (() => {
         document.getElementById('pull-bar-cancel')?.addEventListener('click', cancelPull);
     }
 
-    return { init, pull, activate, remove, removeCustom, showInfo, cancelPull };
+    return { init, pull, activate, remove, removeCustom, cancelPull };
 
 })();
 

@@ -51,11 +51,14 @@ services:
       - RAG_TOP_K=${RAG_TOP_K:-5}
       - CONTEXT_WINDOW=${CONTEXT_WINDOW:-4096}
       - TEMPERATURE=${TEMPERATURE:-0.7}
+      - APP_VERSION=${APP_VERSION:-dev}
+      - GITHUB_REPO=${GITHUB_REPO:-}
     volumes:
       - knowledge_data:/data/knowledge
       - config_data:/data/config
       - logs_data:/data/logs
       - ./.gpu-mode:/data/.gpu-mode:ro
+      - ./.update-flag:/data/.update-flag
     depends_on:
       ollama:
         condition: service_started

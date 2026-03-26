@@ -22,6 +22,10 @@ from admin.files import (
     save_upload, rename_file, delete_file, move_file, get_stats,
     check_duplicates,
 )
+from admin.updates import (
+    get_update_status, get_update_log, request_update, request_rollback,
+    get_flag_status,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -156,6 +160,7 @@ class GenerationParamsRequest(BaseModel):
     max_tokens: int | None = None
     repeat_penalty: float | None = None
     response_language: str | None = None
+    thinking_mode: bool | None = None
 
 @router.post("/models/params")
 def models_update_params(req: GenerationParamsRequest):
@@ -168,6 +173,7 @@ def models_update_params(req: GenerationParamsRequest):
         max_tokens=req.max_tokens,
         repeat_penalty=req.repeat_penalty,
         response_language=req.response_language,
+        thinking_mode=req.thinking_mode,
     )
 
 
@@ -459,3 +465,43 @@ def config_snapshot_delete(req: DeleteSnapshotRequest):
         return cfg.delete_snapshot(req.id)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Update Manager (ADM-04 / INF-04)
+# ---------------------------------------------------------------------------
+
+@router.get("/updates/status")
+async def updates_status():
+    """Current version + GitHub update availability."""
+    return await get_update_status()
+
+
+@router.get("/updates/log")
+def updates_log(n: int = 20):
+    """Last N update log entries."""
+    return {"log": get_update_log(n)}
+
+
+@router.get("/updates/flag")
+def updates_flag():
+    """Check if an update/rollback is currently pending."""
+    return get_flag_status()
+
+
+@router.post("/updates/trigger")
+def updates_trigger():
+    """Request an update via flag file (host-side watcher picks this up)."""
+    result = request_update()
+    if result["status"] != "ok":
+        raise HTTPException(status_code=500, detail=result.get("detail"))
+    return result
+
+
+@router.post("/updates/rollback")
+def updates_rollback():
+    """Request a rollback via flag file."""
+    result = request_rollback()
+    if result["status"] != "ok":
+        raise HTTPException(status_code=500, detail=result.get("detail"))
+    return result

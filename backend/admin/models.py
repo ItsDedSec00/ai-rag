@@ -25,151 +25,109 @@ OLLAMA_BASE = f"http://{OLLAMA_HOST}:{OLLAMA_PORT}"
 # Layperson-friendly model catalog
 # ---------------------------------------------------------------------------
 
-MODEL_CATALOG = [
-    # ------------------------------------------------------------------
-    # Einsteiger — für schwache Hardware
-    # ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Model families — each family has a description + ordered list of sizes
+# ---------------------------------------------------------------------------
+
+MODEL_FAMILIES = [
     {
-        "id": "llama3.2:1b",
-        "name": "Llama 3.2 — 1B",
-        "family": "Meta Llama",
-        "params": "1B",
-        "size_gb": 0.7,
-        "speed": "sehr schnell",
-        "quality": "einfach",
-        "stars": 1,
-        "min_ram_gb": 4,
-        "min_vram_mb": 0,
-        "description": "Das kleinste Modell — ideal zum Testen oder für sehr schwache Hardware. "
-                       "Versteht einfache Fragen, aber Antworten können ungenau sein.",
-        "best_for": "Testen, sehr schwache PCs",
-        "tier": "einsteiger",
-    },
-    # ------------------------------------------------------------------
-    # Standard — guter Alltag
-    # ------------------------------------------------------------------
-    {
-        "id": "qwen3:8b",
-        "name": "Qwen 3 — 8B",
-        "family": "Alibaba Qwen",
-        "params": "8B",
-        "size_gb": 5.2,
-        "speed": "schnell",
-        "quality": "sehr gut",
-        "stars": 3,
-        "min_ram_gb": 8,
-        "min_vram_mb": 4_000,
-        "description": "Bestes Modell unter 10B für RAG-Anwendungen. "
-                       "Versteht Deutsch sehr gut, liefert präzise Antworten "
-                       "aus Dokumenten und bleibt nah am Quelltext.",
-        "best_for": "RAG-Alltag, Dokumenten-Fragen, 8+ GB RAM",
-        "tier": "standard",
-    },
-    # ------------------------------------------------------------------
-    # Fortgeschritten — starke Qualität
-    # ------------------------------------------------------------------
-    {
-        "id": "deepseek-r1:14b",
-        "name": "DeepSeek-R1 — 14B",
-        "family": "DeepSeek",
-        "params": "14B",
-        "size_gb": 9.0,
-        "speed": "mittel",
-        "quality": "sehr gut",
-        "stars": 4,
-        "min_ram_gb": 16,
-        "min_vram_mb": 6_000,
-        "description": "Reasoning-Modell: denkt Schritt für Schritt nach, bevor es antwortet. "
-                       "Besonders gut bei komplexen Fragen, Fachtexten und "
-                       "wenn die Antwort aus mehreren Quellen zusammengesetzt werden muss. "
-                       "Etwas langsamer, dafür gründlicher.",
-        "best_for": "Komplexe Fragen, Fachtexte, 16 GB RAM",
-        "tier": "fortgeschritten",
+        "key": "llama3.2",
+        "name": "Llama 3.2",
+        "vendor": "Meta",
+        "description": "Bewährtes Allround-Modell von Meta. Solide Qualität, "
+                       "schnelle Antworten, gutes Deutsch.",
+        "supports_thinking": False,
+        "sizes": [
+            {"id": "llama3.2:1b", "label": "1B", "size_gb": 0.7,
+             "min_ram_gb": 4, "min_vram_mb": 0},
+            {"id": "llama3.2:3b", "label": "3B", "size_gb": 2.0,
+             "min_ram_gb": 6, "min_vram_mb": 2_000},
+        ],
     },
     {
-        "id": "gpt-oss:20b",
-        "name": "GPT-OSS — 20B",
-        "family": "OpenAI",
-        "params": "21B (3.6B aktiv)",
-        "size_gb": 14.0,
-        "speed": "schnell",
-        "quality": "sehr gut",
-        "stars": 4,
-        "min_ram_gb": 16,
-        "min_vram_mb": 8_000,
-        "description": "OpenAIs erstes Open-Source-Modell. Nutzt Mixture-of-Experts — "
-                       "nur 3.6B Parameter sind gleichzeitig aktiv, dadurch schnell "
-                       "trotz 21B Gesamtgröße. Sehr gute Antwortqualität, "
-                       "128K Kontextfenster, Apache-2.0-Lizenz.",
-        "best_for": "Schnelle, präzise Antworten, 16+ GB RAM",
-        "tier": "fortgeschritten",
-    },
-    # ------------------------------------------------------------------
-    # Profi — beste Qualität
-    # ------------------------------------------------------------------
-    {
-        "id": "qwen3:32b",
-        "name": "Qwen 3 — 32B",
-        "family": "Alibaba Qwen",
-        "params": "32B",
-        "size_gb": 20.0,
-        "speed": "mittel",
-        "quality": "exzellent",
-        "stars": 5,
-        "min_ram_gb": 32,
-        "min_vram_mb": 16_000,
-        "description": "Exzellentes RAG-Modell mit hervorragendem Deutsch. "
-                       "Versteht komplexe Zusammenhänge über lange Dokumente, "
-                       "zitiert Quellen präzise und liefert ausgewogene Antworten.",
-        "best_for": "Beste RAG-Qualität, Server mit 32 GB RAM oder 16 GB VRAM",
-        "tier": "profi",
+        "key": "qwen3.5",
+        "name": "Qwen 3.5",
+        "vendor": "Alibaba",
+        "description": "Aktuelles Top-Modell mit hervorragendem Deutsch und Reasoning. "
+                       "Unterstützt Thinking-Modus für komplexe Fragen.",
+        "supports_thinking": True,
+        "sizes": [
+            {"id": "qwen3.5:0.8b", "label": "0.8B", "size_gb": 0.5,
+             "min_ram_gb": 4, "min_vram_mb": 0},
+            {"id": "qwen3.5:2b", "label": "2B", "size_gb": 1.5,
+             "min_ram_gb": 4, "min_vram_mb": 1_500},
+            {"id": "qwen3.5:4b", "label": "4B", "size_gb": 2.7,
+             "min_ram_gb": 6, "min_vram_mb": 3_000},
+            {"id": "qwen3.5:9b", "label": "9B", "size_gb": 5.5,
+             "min_ram_gb": 10, "min_vram_mb": 6_000},
+            {"id": "qwen3.5:27b", "label": "27B", "size_gb": 16.0,
+             "min_ram_gb": 24, "min_vram_mb": 16_000},
+            {"id": "qwen3.5:35b", "label": "35B", "size_gb": 21.0,
+             "min_ram_gb": 32, "min_vram_mb": 22_000},
+            {"id": "qwen3.5:122b", "label": "122B", "size_gb": 72.0,
+             "min_ram_gb": 96, "min_vram_mb": 80_000},
+        ],
     },
     {
-        "id": "deepseek-r1:32b",
-        "name": "DeepSeek-R1 — 32B",
-        "family": "DeepSeek",
-        "params": "32B",
-        "size_gb": 20.0,
-        "speed": "langsam",
-        "quality": "exzellent",
-        "stars": 5,
-        "min_ram_gb": 32,
-        "min_vram_mb": 20_000,
-        "description": "Tiefes Reasoning auf GPT-4-Niveau. Denkt gründlich nach, "
-                       "erkennt Widersprüche in Dokumenten und liefert gut begründete "
-                       "Antworten. Ideal wenn Korrektheit wichtiger als Geschwindigkeit ist.",
-        "best_for": "Maximale Korrektheit, 24+ GB VRAM",
-        "tier": "profi",
+        "key": "deepseek-r1",
+        "name": "DeepSeek-R1",
+        "vendor": "DeepSeek",
+        "description": "Reasoning-Modell: denkt Schritt für Schritt nach. "
+                       "Besonders gut bei Fachtexten und komplexen Zusammenhängen.",
+        "supports_thinking": True,
+        "sizes": [
+            {"id": "deepseek-r1:1.5b", "label": "1.5B", "size_gb": 1.0,
+             "min_ram_gb": 4, "min_vram_mb": 0},
+            {"id": "deepseek-r1:7b", "label": "7B", "size_gb": 4.7,
+             "min_ram_gb": 8, "min_vram_mb": 4_000},
+            {"id": "deepseek-r1:8b", "label": "8B", "size_gb": 5.0,
+             "min_ram_gb": 10, "min_vram_mb": 5_000},
+            {"id": "deepseek-r1:14b", "label": "14B", "size_gb": 9.0,
+             "min_ram_gb": 16, "min_vram_mb": 8_000},
+            {"id": "deepseek-r1:32b", "label": "32B", "size_gb": 20.0,
+             "min_ram_gb": 32, "min_vram_mb": 20_000},
+            {"id": "deepseek-r1:70b", "label": "70B", "size_gb": 43.0,
+             "min_ram_gb": 64, "min_vram_mb": 48_000},
+        ],
     },
     {
-        "id": "gpt-oss:120b",
-        "name": "GPT-OSS — 120B",
-        "family": "OpenAI",
-        "params": "117B (5.1B aktiv)",
-        "size_gb": 65.0,
-        "speed": "mittel",
-        "quality": "exzellent",
-        "stars": 5,
-        "min_ram_gb": 80,
-        "min_vram_mb": 80_000,
-        "description": "OpenAIs stärkstes Open-Source-Modell. Nahe an o4-mini-Niveau. "
-                       "Mixture-of-Experts mit nur 5.1B aktiven Parametern, "
-                       "läuft auf einer einzelnen 80-GB-GPU (H100/MI300X). "
-                       "128K Kontext, exzellentes Reasoning.",
-        "best_for": "Maximale Qualität, High-End GPU (80 GB VRAM)",
-        "tier": "profi",
+        "key": "gpt-oss",
+        "name": "GPT-OSS",
+        "vendor": "OpenAI",
+        "description": "OpenAIs Open-Source-Modell. Mixture-of-Experts — "
+                       "schnell trotz großer Gesamtgröße.",
+        "supports_thinking": False,
+        "sizes": [
+            {"id": "gpt-oss:20b", "label": "20B", "size_gb": 14.0,
+             "min_ram_gb": 16, "min_vram_mb": 8_000},
+            {"id": "gpt-oss:120b", "label": "120B", "size_gb": 65.0,
+             "min_ram_gb": 80, "min_vram_mb": 80_000},
+        ],
     },
 ]
+
+# Flat catalog for backwards-compat (used by custom model check)
+MODEL_CATALOG = []
+for _fam in MODEL_FAMILIES:
+    for _sz in _fam["sizes"]:
+        MODEL_CATALOG.append({"id": _sz["id"], "family": _fam["key"]})
 
 
 # ---------------------------------------------------------------------------
 # Hardware-aware recommendation
 # ---------------------------------------------------------------------------
 
+def _fits_hardware(size: dict, vram_mb: int | None, ram_gb: float) -> bool:
+    """Check if a model size fits the available hardware."""
+    if vram_mb is not None and vram_mb > 0:
+        return vram_mb >= size["min_vram_mb"]
+    return ram_gb >= size["min_ram_gb"]
+
+
 def get_recommendations() -> dict[str, Any]:
     """
-    Return model catalog with per-model compatibility status
-    and a top recommendation — explained for non-technical users.
+    Return model families with per-size compatibility and
+    a recommended size per family based on available hardware.
     """
     hw = get_gpu_info()
     mode = hw.get("mode", "cpu")
@@ -185,41 +143,29 @@ def get_recommendations() -> dict[str, Any]:
         )
         gpu_count = len(hw["gpus"])
 
-    # Score each model
-    models = []
-    best = None
-    best_score = -1
+    resource_str = (f"{vram_mb // 1024} GB VRAM" if vram_mb and vram_mb > 0
+                    else f"{ram_gb:.0f} GB RAM")
 
-    for m in MODEL_CATALOG:
-        entry = {**m}
+    # Build family data with compatibility per size
+    families = []
+    for fam in MODEL_FAMILIES:
+        sizes = []
+        recommended_idx = -1
+        for i, sz in enumerate(fam["sizes"]):
+            fits = _fits_hardware(sz, vram_mb, ram_gb)
+            sizes.append({**sz, "compatible": fits})
+            if fits:
+                recommended_idx = i  # last fitting = largest that fits
 
-        # Compatibility check
-        if vram_mb is not None and vram_mb > 0:
-            fits = vram_mb >= m["min_vram_mb"]
-            resource = f"{vram_mb // 1024} GB VRAM"
-        else:
-            fits = ram_gb >= m["min_ram_gb"]
-            resource = f"{ram_gb:.0f} GB RAM"
-
-        entry["compatible"] = fits
-
-        if not fits:
-            entry["reason"] = (
-                f"Benötigt mindestens {m['min_ram_gb']} GB RAM"
-                if vram_mb is None
-                else f"Benötigt mindestens {m['min_vram_mb'] // 1024} GB VRAM"
-            )
-        else:
-            entry["reason"] = f"Passt zu deiner Hardware ({resource})"
-
-        # Score: prefer best quality that still fits
-        if fits:
-            score = m["stars"] * 10 + m["size_gb"]
-            if score > best_score:
-                best_score = score
-                best = entry
-
-        models.append(entry)
+        families.append({
+            "key": fam["key"],
+            "name": fam["name"],
+            "vendor": fam["vendor"],
+            "description": fam["description"],
+            "supports_thinking": fam["supports_thinking"],
+            "sizes": sizes,
+            "recommended_idx": recommended_idx,  # -1 = none fit
+        })
 
     # Hardware summary for the UI
     if mode == "cpu":
@@ -239,27 +185,8 @@ def get_recommendations() -> dict[str, Any]:
             hw_hint = ("Dein System hat eine Grafikkarte — die KI kann diese "
                        "für schnellere Antworten nutzen.")
 
-    # Append custom (user-added) models
+    # Custom models
     custom_models = get_custom_models()
-    for cm in custom_models:
-        models.append({
-            "id": cm["id"],
-            "name": cm["id"],
-            "family": "Benutzerdefiniert",
-            "params": "—",
-            "size_gb": 0,
-            "speed": "—",
-            "quality": "—",
-            "stars": 0,
-            "min_ram_gb": 0,
-            "min_vram_mb": 0,
-            "description": "Manuell hinzugefügtes Modell",
-            "best_for": "—",
-            "tier": "custom",
-            "compatible": True,
-            "reason": "Manuell hinzugefügt",
-            "custom": True,
-        })
 
     return {
         "hardware": {
@@ -269,9 +196,10 @@ def get_recommendations() -> dict[str, Any]:
             "hint": hw_hint,
             "ram_gb": ram_gb,
             "vram_mb": vram_mb,
+            "resource": resource_str,
         },
-        "recommendation": best,
-        "models": models,
+        "families": families,
+        "custom_models": [cm["id"] for cm in custom_models],
     }
 
 
@@ -396,6 +324,7 @@ def get_active_model() -> dict:
         "max_tokens": cfg.ollama_max_tokens(),
         "repeat_penalty": cfg.ollama_repeat_penalty(),
         "response_language": cfg.ollama_response_language(),
+        "thinking_mode": cfg.ollama_thinking_mode(),
     }
 
 
@@ -413,6 +342,7 @@ def update_generation_params(
     max_tokens: int | None = None,
     repeat_penalty: float | None = None,
     response_language: str | None = None,
+    thinking_mode: bool | None = None,
 ) -> dict:
     """Update generation parameters in config."""
     updates = {}
@@ -430,6 +360,8 @@ def update_generation_params(
         updates["repeat_penalty"] = round(min(max(repeat_penalty, 1.0), 2.0), 2)
     if response_language is not None:
         updates["response_language"] = response_language
+    if thinking_mode is not None:
+        updates["thinking_mode"] = bool(thinking_mode)
 
     if updates:
         cfg.update_section("ollama", updates)

@@ -40,6 +40,7 @@ _DEFAULTS: dict[str, Any] = {
         "max_tokens": 2048,
         "repeat_penalty": 1.1,
         "response_language": "auto",
+        "thinking_mode": False,
         "system_prompt": (
             "Du bist ein hilfreicher Assistent. Beantworte die Frage des Nutzers "
             "basierend auf dem folgenden Kontext. Wenn der Kontext keine Antwort "
@@ -218,6 +219,10 @@ def ollama_repeat_penalty() -> float:
 def ollama_response_language() -> str:
     if not _loaded: load()
     return _cfg.get("ollama", {}).get("response_language", "auto")
+
+def ollama_thinking_mode() -> bool:
+    if not _loaded: load()
+    return _cfg.get("ollama", {}).get("thinking_mode", False)
 
 def rag_min_score() -> float:
     if not _loaded: load()
