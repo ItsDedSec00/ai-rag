@@ -38,11 +38,11 @@ Ohne GPU läuft die Anwendung im CPU-Modus — Antworten sind deutlich langsamer
 
 ```bash
 # Repository klonen
-git clone https://github.com/dein-username/rag-chat.git
+git clone https://github.com/ItsDedSec00/ai-rag.git
 cd rag-chat
 
-# Installer ausführen (benötigt sudo)
-bash install.sh
+# Installer ausführen
+sudo bash install.sh
 ```
 
 Der Installer erledigt automatisch:
