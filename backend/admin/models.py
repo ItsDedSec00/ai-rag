@@ -298,7 +298,8 @@ async def delete_model(model: str) -> dict:
     """Delete a model from Ollama."""
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.delete(
+            r = await client.request(
+                "DELETE",
                 f"{OLLAMA_BASE}/api/delete",
                 json={"name": model},
             )
