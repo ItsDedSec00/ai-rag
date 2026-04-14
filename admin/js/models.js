@@ -194,7 +194,8 @@ const Models = (() => {
                         if (isPulling) {
                             action = '<span class="size-status-text">Wird heruntergeladen…</span>';
                         } else if (active) {
-                            action = '<span class="size-active-badge">Aktiv</span>';
+                            action = `<span class="size-active-badge">Aktiv</span>
+                                      <button class="btn-sm btn-red" onclick="Models.remove('${_esc(sz.id)}')">Löschen</button>`;
                         } else if (installed) {
                             action = `<button class="btn-sm btn-accent" onclick="Models.activate('${_esc(sz.id)}')">Aktivieren</button>
                                       <button class="btn-sm btn-red" onclick="Models.remove('${_esc(sz.id)}')">Löschen</button>`;
@@ -435,7 +436,19 @@ const Models = (() => {
     // =================================================================
 
     async function remove(modelId) {
-        if (!confirm(`Modell "${modelId}" wirklich löschen?`)) return;
+        const isActive = _activeModel === modelId;
+        const otherInstalled = _installed.filter(m => m.name !== modelId);
+
+        if (isActive && otherInstalled.length === 0) {
+            alert(`"${modelId}" ist das einzige installierte Modell und kann nicht gelöscht werden.\n\nInstalliere zuerst ein anderes Modell und aktiviere es.`);
+            return;
+        }
+
+        const activeWarning = isActive
+            ? `\n\nACHTUNG: Dieses Modell ist gerade aktiv. Nach dem Löschen wird kein Modell mehr gesetzt.`
+            : '';
+        if (!confirm(`Modell "${modelId}" wirklich löschen?${activeWarning}`)) return;
+
         try {
             const r = await fetch('/api/admin/models/delete', {
                 method: 'POST',
@@ -444,6 +457,7 @@ const Models = (() => {
             });
             if (r.ok) {
                 _installed = _installed.filter(m => m.name !== modelId);
+                if (isActive) _activeModel = otherInstalled[0]?.name || '';
                 // If it's a custom model, also remove it from the custom list
                 if (_customModels.includes(modelId)) {
                     await fetch('/api/admin/models/custom/remove', {
@@ -454,6 +468,9 @@ const Models = (() => {
                     _customModels = _customModels.filter(id => id !== modelId);
                 }
                 _renderFamilies();
+            } else {
+                const err = await r.json().catch(() => ({}));
+                alert(`Fehler beim Löschen: ${err.detail || r.status}`);
             }
         } catch (_) {}
     }
