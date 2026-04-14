@@ -88,6 +88,11 @@ _DEFAULTS: dict[str, Any] = {
         "primary_color": "#3b82f6",
     },
     "custom_models": [],
+    "api": {
+        "enabled": True,
+        "rag_enabled": True,   # if False, bypasses ChromaDB and goes directly to Ollama
+        "keys": [],            # list of {id, name, hash, created_at, last_used}
+    },
 }
 
 # Map env-var names → config paths for initial seeding
@@ -396,3 +401,56 @@ def delete_snapshot(snap_id: str) -> dict[str, str]:
         raise FileNotFoundError(f"Snapshot '{snap_id}' nicht gefunden")
     os.unlink(snap_path)
     return {"status": "ok", "deleted": snap_id}
+
+
+# ──────────────────────────────────────────────────────────────────────
+# API / OpenAI-compat layer
+# ──────────────────────────────────────────────────────────────────────
+
+def api_enabled() -> bool:
+    if not _loaded: load()
+    return bool(_cfg.get("api", {}).get("enabled", True))
+
+def api_rag_enabled() -> bool:
+    if not _loaded: load()
+    return bool(_cfg.get("api", {}).get("rag_enabled", True))
+
+def api_keys() -> list[dict]:
+    if not _loaded: load()
+    return list(_cfg.get("api", {}).get("keys", []))
+
+
+# Key last-used debounce: avoid disk I/O on every request
+_key_touch_cache: dict[str, float] = {}
+
+def api_add_key(record: dict) -> None:
+    """Append a new API key record and persist."""
+    if not _loaded: load()
+    _cfg.setdefault("api", {}).setdefault("keys", []).append(record)
+    save()
+
+def api_remove_key(key_id: str) -> None:
+    """Remove an API key by ID. Raises KeyError if not found."""
+    if not _loaded: load()
+    keys = _cfg.setdefault("api", {}).get("keys", [])
+    new_keys = [k for k in keys if k.get("id") != key_id]
+    if len(new_keys) == len(keys):
+        raise KeyError(f"API key '{key_id}' not found")
+    _cfg["api"]["keys"] = new_keys
+    _key_touch_cache.pop(key_id, None)
+    save()
+
+def api_touch_key(key_id: str) -> None:
+    """Update last_used timestamp (debounced — max one write per 60s per key)."""
+    import time as _time
+    now = _time.monotonic()
+    if now - _key_touch_cache.get(key_id, 0.0) < 60.0:
+        return
+    _key_touch_cache[key_id] = now
+    if not _loaded: load()
+    ts = datetime.now(timezone.utc).isoformat()
+    for key in _cfg.get("api", {}).get("keys", []):
+        if key.get("id") == key_id:
+            key["last_used"] = ts
+            break
+    save()

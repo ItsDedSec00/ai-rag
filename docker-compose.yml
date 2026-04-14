@@ -100,6 +100,21 @@ services:
     networks:
       - rag-network
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: rag-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      nginx:
+        condition: service_started
+    networks:
+      - rag-network
+    profiles:
+      - tunnel
+
 volumes:
   ollama_data:
     name: rag-ollama-data

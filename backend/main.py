@@ -11,6 +11,7 @@ import httpx
 
 from admin.routes import router as admin_router
 from admin.system import request_counter
+from api.openai_compat import router as openai_router
 from rag.query import router as chat_router
 from rag.upload import router as upload_router, cleanup_loop
 
@@ -69,6 +70,7 @@ app = FastAPI(title="RAG-Chat Backend", version="0.1.0", lifespan=lifespan)
 app.include_router(admin_router)
 app.include_router(chat_router)
 app.include_router(upload_router)
+app.include_router(openai_router)
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +79,9 @@ app.include_router(upload_router)
 
 class RequestCounterMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if request.url.path == "/api/chat" and request.method == "POST":
+        if request.method == "POST" and request.url.path in (
+            "/api/chat", "/v1/chat/completions"
+        ):
             request_counter.increment()
         return await call_next(request)
 

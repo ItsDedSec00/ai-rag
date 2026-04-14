@@ -13,6 +13,8 @@ Lokale, selbstgehostete KI-Chat-Anwendung mit Wissensdatenbank (RAG) für Linux-
 - [Erster Start](#erster-start)
 - [Admin-Panel](#admin-panel)
 - [Wissensdatenbank befüllen](#wissensdatenbank-befüllen)
+- [API-Zugang (OpenAI-kompatibel)](#api-zugang-openai-kompatibel)
+- [Cloudflare Tunnel (externer Zugriff)](#cloudflare-tunnel-externer-zugriff)
 - [Update](#update)
 - [Deinstallation](#deinstallation)
 - [Troubleshooting](#troubleshooting)
@@ -94,6 +96,7 @@ http://<server-ip>/admin
 | **Performance** | Anfragen-Verlauf, Token/s, Latenz-Statistiken |
 | **Updates** | Versionsstand prüfen, Update auslösen |
 | **Erweiterungen** | Zukünftige Erweiterungen (in Entwicklung) |
+| **API-Schlüssel** | API-Schlüssel für die OpenAI-kompatible Schnittstelle verwalten |
 
 ---
 
@@ -114,6 +117,82 @@ cp meine-dokumente/*.pdf /pfad/zu/rag-chat/data/knowledge/
 ```
 
 Die Verarbeitung (Indexierung) läuft im Hintergrund. Fortschritt ist im Dashboard sichtbar.
+
+---
+
+## API-Zugang (OpenAI-kompatibel)
+
+RAG-Chat stellt eine OpenAI-kompatible API bereit. Andere Anwendungen (z. B. eigene Webapps, n8n, LangChain, Open WebUI) können RAG-Chat damit wie ein normales OpenAI-Modell ansprechen — inklusive Wissensdatenbank.
+
+### API-Schlüssel erstellen
+
+1. Admin-Panel öffnen → Tab **API-Schlüssel**
+2. „Neuen Schlüssel erstellen" klicken und einen Namen vergeben
+3. Den angezeigten Schlüssel (`rck-...`) kopieren — er wird nur einmal angezeigt
+
+### Endpunkte
+
+| Methode | Pfad | Funktion |
+|---------|------|----------|
+| `GET` | `/v1/models` | Verfügbares Modell abfragen |
+| `POST` | `/v1/chat/completions` | Chat-Anfrage (mit RAG-Kontext) |
+
+### Verwendung
+
+**Python (openai SDK):**
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="rck-...",
+    base_url="http://<server-ip>:8080/v1"
+)
+
+resp = client.chat.completions.create(
+    model="llama3.2:1b",
+    messages=[{"role": "user", "content": "Was steht in meinen Dokumenten?"}]
+)
+print(resp.choices[0].message.content)
+```
+
+**curl:**
+```bash
+curl http://<server-ip>:8080/v1/chat/completions \
+  -H "Authorization: Bearer rck-..." \
+  -H "Content-Type: application/json" \
+  -d '{"model":"llama3.2:1b","messages":[{"role":"user","content":"Hallo"}]}'
+```
+
+**Streaming** wird mit `"stream": true` im Request-Body aktiviert und liefert Token-für-Token im OpenAI SSE-Format.
+
+> Die RAG-Wissensdatenbank wird automatisch durchsucht. Quellen werden als `x_rag_sources` im Response-Objekt mitgeliefert (von Standard-OpenAI-Clients ignoriert).
+
+---
+
+## Cloudflare Tunnel (externer Zugriff)
+
+Mit einem Cloudflare Tunnel kann RAG-Chat sicher über das Internet erreichbar gemacht werden — ohne Port-Weiterleitung oder selbstsignierte Zertifikate. Der Tunnel verschlüsselt die Verbindung über Cloudflares Netzwerk.
+
+### Einrichtung
+
+1. Unter [one.dash.cloudflare.com](https://one.dash.cloudflare.com) anmelden → **Zero Trust → Networks → Tunnels**
+2. „Create a tunnel" → Name: `rag-chat`
+3. Den angezeigten Token kopieren (aus dem `cloudflared service install ...`-Befehl)
+4. Token in der `.env` Datei auf dem Server eintragen:
+   ```bash
+   CLOUDFLARE_TUNNEL_TOKEN=eyJ...
+   ```
+5. Im Cloudflare-Dashboard unter **Public Hostname** eine Subdomain anlegen:
+   - Subdomain: z. B. `chat.meineschule.de`
+   - Service: `http://nginx:80`
+6. Tunnel starten:
+   ```bash
+   docker compose --profile tunnel up -d
+   ```
+
+Danach ist RAG-Chat (und die API) unter `https://chat.meineschule.de` erreichbar.
+
+> ⚠️ Die API-Schlüssel schützen den `/v1/`-Endpunkt. Stelle sicher, dass mindestens ein Schlüssel erstellt ist, bevor der Tunnel aktiviert wird.
 
 ---
 

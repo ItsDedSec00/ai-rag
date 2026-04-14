@@ -537,6 +537,51 @@ def updates_rollback():
 
 
 # ---------------------------------------------------------------------------
+# API Key Management (OpenAI-compat layer)
+# ---------------------------------------------------------------------------
+
+class CreateKeyRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=64)
+
+class RevokeKeyRequest(BaseModel):
+    id: str
+
+@router.get("/api-keys")
+def api_keys_list():
+    """List all API keys. Hashes are never exposed."""
+    keys = cfg.api_keys()
+    safe = [{k: v for k, v in key.items() if k != "hash"} for key in keys]
+    return {"keys": safe}
+
+@router.post("/api-keys")
+def api_keys_create(req: CreateKeyRequest):
+    """Generate a new API key. The plaintext is returned exactly once."""
+    import uuid
+    from datetime import datetime, timezone
+    from api.auth import generate_key
+
+    plaintext, digest = generate_key()
+    record = {
+        "id": str(uuid.uuid4()),
+        "name": req.name,
+        "hash": digest,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "last_used": None,
+    }
+    cfg.api_add_key(record)
+    return {"key": plaintext, "id": record["id"], "name": record["name"]}
+
+@router.post("/api-keys/revoke")
+def api_keys_revoke(req: RevokeKeyRequest):
+    """Revoke (delete) an API key by ID."""
+    try:
+        cfg.api_remove_key(req.id)
+        return {"status": "ok"}
+    except KeyError:
+        raise HTTPException(status_code=404, detail="API key not found")
+
+
+# ---------------------------------------------------------------------------
 # Performance Monitor (ADM-05)
 # ---------------------------------------------------------------------------
 
