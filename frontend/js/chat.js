@@ -336,6 +336,15 @@ const Chat = (() => {
         const sessionId = Upload.getSessionId();
         if (sessionId) body.session_id = sessionId;
 
+        // Include recent conversation history so the model has context
+        const activeChat = _getChat(_activeId);
+        if (activeChat && activeChat.messages.length > 0) {
+            body.history = activeChat.messages.slice(-20).map(m => ({
+                role: m.role,
+                content: m.content,
+            }));
+        }
+
         let contentDiv = null;
         let fullText = '';
         let thinkingText = '';

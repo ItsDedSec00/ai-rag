@@ -51,8 +51,14 @@ OLLAMA_BASE = f"http://{OLLAMA_HOST}:{OLLAMA_PORT}"
 # Request / Response models
 # ---------------------------------------------------------------------------
 
+class HistoryMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=10000)
+    history: list[HistoryMessage] = Field(default_factory=list, description="Previous messages in this conversation")
     collection: str | None = Field(None, description="Specific collection to search, or None for all")
     session_id: str | None = Field(None, description="Upload session ID for temporary context")
     top_k: int | None = Field(None, ge=1, le=20)
@@ -63,11 +69,18 @@ class ChatRequest(BaseModel):
 # Prompt builder
 # ---------------------------------------------------------------------------
 
-def _build_prompt(
+def _build_messages(
     query: str,
     context_chunks: list[dict[str, Any]],
-) -> str:
-    """Build the final prompt with system instruction + RAG context + query."""
+    history: list[HistoryMessage],
+) -> list[dict[str, str]]:
+    """Build the Ollama /api/chat messages array.
+
+    Structure:
+      [system] system_prompt (+ RAG context injected if available)
+      [user/assistant] ... conversation history ...
+      [user] current query
+    """
     system_prompt = cfg.ollama_system_prompt()
 
     # Append language instruction if set
@@ -75,28 +88,35 @@ def _build_prompt(
     if lang and lang != "auto":
         system_prompt += f"\n\nAntworte immer auf {lang}."
 
-    if not context_chunks:
-        # No context — pure conversation, no RAG block needed
-        return f"{system_prompt}\n\n{query}"
+    # Inject RAG context into system message when available
+    if context_chunks:
+        parts = []
+        for i, chunk in enumerate(context_chunks, 1):
+            source = chunk.get("source", "Unbekannt")
+            text = chunk.get("text", "")
+            parts.append(f"[Quelle {i}: {source}]\n{text}")
+        context_block = "\n\n---\n\n".join(parts)
+        citation_hint = (
+            "\n\nNutze die folgenden Dokumente NUR, wenn sie zur Frage passen. "
+            "Wenn sie irrelevant sind, ignoriere sie und antworte frei. "
+            "Wenn du Informationen aus den Dokumenten verwendest, "
+            "kennzeichne die genutzte Quelle als [1], [2] usw."
+        )
+        system_prompt = (
+            f"{system_prompt}{citation_hint}\n\n"
+            f"=== DOKUMENTE (optional) ===\n{context_block}"
+        )
 
-    parts = []
-    for i, chunk in enumerate(context_chunks, 1):
-        source = chunk.get("source", "Unbekannt")
-        text = chunk.get("text", "")
-        parts.append(f"[Quelle {i}: {source}]\n{text}")
-    context_block = "\n\n---\n\n".join(parts)
-    citation_hint = (
-        "\n\nNutze die folgenden Dokumente NUR, wenn sie zur Frage passen. "
-        "Wenn sie irrelevant sind, ignoriere sie und antworte frei. "
-        "Wenn du Informationen aus den Dokumenten verwendest, "
-        "kennzeichne die genutzte Quelle als [1], [2] usw."
-    )
+    messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
 
-    return (
-        f"{system_prompt}{citation_hint}\n\n"
-        f"=== DOKUMENTE (optional) ===\n{context_block}\n\n"
-        f"=== FRAGE ===\n{query}"
-    )
+    # Append conversation history (cap at last 20 messages to stay within context)
+    for msg in history[-20:]:
+        messages.append({"role": msg.role, "content": msg.content})
+
+    # Current user question
+    messages.append({"role": "user", "content": query})
+
+    return messages
 
 
 # ---------------------------------------------------------------------------
@@ -188,14 +208,14 @@ def _sse(event_type: str, data: dict) -> str:
 
 
 async def _stream_ollama(
-    prompt: str,
+    messages: list[dict[str, str]],
     model: str,
     temperature: float,
     sources: list[dict[str, Any]],
     request: Request,
 ) -> AsyncGenerator[str, None]:
     """
-    Stream Ollama /api/generate response as SSE events.
+    Stream Ollama /api/chat response as SSE events.
     Yields: token events, then sources, then done.
     """
     # State machine for <think>...</think> reasoning blocks
@@ -211,10 +231,10 @@ async def _stream_ollama(
         async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream(
                 "POST",
-                f"{OLLAMA_BASE}/api/generate",
+                f"{OLLAMA_BASE}/api/chat",
                 json={
                     "model": model,
-                    "prompt": prompt,
+                    "messages": messages,
                     "stream": True,
                     "think": cfg.ollama_thinking_mode(),
                     "keep_alive": cfg.ollama_keep_alive(),
@@ -242,7 +262,7 @@ async def _stream_ollama(
                     except json.JSONDecodeError:
                         continue
 
-                    token = chunk.get("response", "")
+                    token = (chunk.get("message") or {}).get("content", "")
                     if token:
                         if _first_token_ms is None:
                             _first_token_ms = (time.monotonic() - _start) * 1000
@@ -389,13 +409,13 @@ async def chat(req: ChatRequest, request: Request):
         logger.error("Context retrieval failed: %s", e)
         context_chunks, sources = [], []
 
-    # 2. Build prompt
-    prompt = _build_prompt(req.message, context_chunks)
-    logger.debug("Prompt length: %d chars, %d context chunks", len(prompt), len(context_chunks))
+    # 2. Build messages (system + history + current query)
+    messages = _build_messages(req.message, context_chunks, req.history)
+    logger.debug("Messages: %d total, %d context chunks", len(messages), len(context_chunks))
 
     # 3. Stream response
     return StreamingResponse(
-        _stream_ollama(prompt, model, temperature, sources, request),
+        _stream_ollama(messages, model, temperature, sources, request),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
